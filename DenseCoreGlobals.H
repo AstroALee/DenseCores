@@ -11,12 +11,12 @@
 
 // Constants (cgs)
 #define PI 3.14159265359
-#define GCST 6.67259e-8;
+#define GCST 1.0 //6.67259e-8
 
 // Global variables, so they can be global across different files
 extern int N;
 extern int Z;
-extern double RhoCorner;
+extern double pLength;
 extern double RhoCenter;
 extern double MassGuess;
 extern double betaedge;
@@ -35,6 +35,14 @@ enum states { Vpot, Apot, Q };
 // No'bdy gonna make me type std:: over and over again
 using namespace std;
 
+
+// Position based on grid cell and cell length
+inline double cPos(int i,double delta)
+{
+    double id = ((double)i);
+    double pos = (0.5 + id)*delta;
+    return pos;
+}
 
 
 // Plural function, because grammar matters

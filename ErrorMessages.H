@@ -1,18 +1,23 @@
-/* Error Messages */
+/* Error Messages and Info Messages */
 
+
+inline void TELLME_Inputs()
+{
+    cout << "You had " << endl;
+}
 
 
 inline void WATERLOO_ArgCountCheck(int i)
 {
-    if(i < 7)
+    if(i < 8)
     {
-        cout << "WATERLOO: Not enough arguments (N,Z,RhoCorner,RhoCenter,MassGuess,betaedge)" << endl;
+        cout << "WATERLOO: Not enough arguments (N,Z,Non-Dim Width,RhoCenter,MassGuess,betaedge,n)" << endl;
         cout << "You provided " << i-1 << " argument" << Plural(i-1,"s") << "." << endl;
         exit(1);
     }
-    if(i > 7)
+    if(i > 8)
     {
-        cout << "WATERLOO: Too many arguements? (N,Z,RhoCorner,RhoCenter,MassGuess,betaedge) " << endl;
+        cout << "WATERLOO: Too many arguements? (N,Z,Non-Dim Width,RhoCenter,MassGuess,betaedge,n) " << endl;
         cout << "You provided " << i-1 << " argument" << Plural(i-1,"s") << "." << endl;
         exit(1);
     }

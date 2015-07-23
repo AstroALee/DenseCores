@@ -3,7 +3,7 @@
 /* Global Variables */
 int N=1;
 int Z=1;
-double RhoCorner=1;
+double pLength=1;
 double RhoCenter=1;
 double MassGuess=1;
 double DeltaR = 1.0;
@@ -27,26 +27,6 @@ double *VContour;
 
 // Functions
 void MagCylinder(double*,double*);
-void PointMassPotential(double***);
-
-
-
-// Includes boundary (n=0; all z from 0 up to and including Z & z=Z; all n from 0 up to and including N)
-void AllocateState(double ***&curState)
-{
-    int i,j,k;
-    curState = new double **[NStates];
-    
-    
-    for(i=0; i< NStates; i++)
-    {
-        curState[i] = new double *[N+1];
-        for(j=0; j< N+1; j++) curState[i][j] = new double[Z+1];
-    }
-
-}
-
-
 
 
 
@@ -101,7 +81,7 @@ void InitialA(double ***curState,double* initbeta)
         for(i=0;i<N+1;i++)
         {
             // Only fills spots left of the right-most V contour.
-            if(idone==0) if( (0.5+(double)i)*DeltaR > VContour[j] )
+            if(idone==0) if( cPos(i,DeltaR) > VContour[j] )
             {
                 idone = 1;
                 iedge = i-1;
@@ -113,7 +93,7 @@ void InitialA(double ***curState,double* initbeta)
             double currho = curState[Q][idx][j]*exp(-curState[Vpot][idx][j]);
             double curbeta = initbeta[idx];
             double curB = sqrt(8.0*PI*currho/curbeta);
-            double curR = (0.5+(double)i)*DeltaR; // always i , not idx
+            double curR = cPos(i,DeltaR); // always i , not idx
             
             curState[Apot][i][j] = curB*pow(curR,2)/2.0;
             
@@ -152,7 +132,7 @@ void InitialQ(double ***curState,double initbeta[])
         for(i=0;i<N+1;i++)
         {
             // Only fills spots left of the right-most V contour.
-            if(idone==0) if( (0.5+(double)i)*DeltaR > VContour[j] )
+            if(idone==0) if( cPos(i,DeltaR) > VContour[j] )
             {
                idone = 1;
                iedge = i-1;
@@ -193,14 +173,14 @@ void PointMassPotential(double ***curState)
     PotPrevious = new double *[N+1];
     for(i=0;i<N+1;i++) PotPrevious[i] = new double[Z+1];
     
+    // Clears arrays
     for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++) PotPrevious[i][j]=0.0;
     for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++) curState[Vpot][i][j]=0.0;
     
+    double Ppos = 0.0; // holds particle position
+    double di = 0.0; // holds distance to particle
+
     // Loop
-    
-    double Ppos = 0.0;
-    double di = 0.0;
-    
     while(true)
     {
         
@@ -211,8 +191,8 @@ void PointMassPotential(double ***curState)
         for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++)
         {
             // Get position of current cell
-            double CposR = (0.5+(double)i)*DeltaR;
-            double CposZ = (0.5+(double)j)*DeltaZ;
+            double CposR = cPos(i,DeltaR); //(0.5+(double)i)*DeltaR;
+            double CposZ = cPos(j,DeltaZ); //(0.5+(double)j)*DeltaZ;
             
             double RelPos = sqrt( pow(CposR,2) + pow(CposZ-Ppos,2) );
             double RelPosN = sqrt( pow(CposR,2) + pow(CposZ+Ppos,2) );
@@ -232,14 +212,20 @@ void PointMassPotential(double ***curState)
             if(curError<error) error = curError;
         }
         
+        //cout << "Iteration " << di << " has an error of " << error << endl;
         
         // If error is low enough, break
-        if(error < tol) {cout << "Tolerence achieved after " << di << " iterations." << endl; break;}
+        if(error < tol)
+        {
+            cout << "Tolerence achieved after " << di << " iterations." << endl;
+            break;
+        }
         
         // Else add some more particles and start again
+        
+        // Copy current potential to previous for error comparison
         for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++)
             PotPrevious[i][j] = curState[Vpot][i][j];
-        
         
         di += 1.0;
         
@@ -248,6 +234,8 @@ void PointMassPotential(double ***curState)
     
     
     // All done
+    
+    // Clear previous potential memory
     for(i=0;i<N;i++) delete[] PotPrevious[i];
     delete[] PotPrevious;
     
@@ -261,10 +249,8 @@ void PointMassPotential(double ***curState)
     for(j=0;j<Z+1;j++) for(i=0;i<N+1;i++)
         if(curState[Vpot][i][j] >= RightContour)
          {
-             double m = (curState[Vpot][i][j] - curState[Vpot][i-1][j]);
-             double x1 = (0.5 + (double)(i-1))*DeltaR;
-             double x2 = (0.5 + (double) i)*DeltaR;
-             m = m/(x2-x1);
+             double m = (curState[Vpot][i][j] - curState[Vpot][i-1][j])/DeltaR;
+             double x1 = cPos(i-1,DeltaR); //0.5 + ((double)(i-1))*DeltaR ;
              
              VContour[j] = x1 + (RightContour - curState[Vpot][i-1][j])/m;
              break;

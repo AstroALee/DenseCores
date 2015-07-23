@@ -25,6 +25,21 @@ void FillState(double ***curState)
     
 }
 
+// Includes boundary (n=0; all z from 0 up to and including Z & z=Z; all n from 0 up to and including N)
+void AllocateState(double ***&curState)
+{
+    int i,j,k;
+    curState = new double **[NStates];
+    
+    
+    for(i=0; i< NStates; i++)
+    {
+        curState[i] = new double *[N+1];
+        for(j=0; j< N+1; j++) curState[i][j] = new double[Z+1];
+    }
+    
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -37,10 +52,20 @@ int main(int argc, char *argv[])
     // Read in from command line
     N = atoi(argv[1]);
     Z = atoi(argv[2]);
-    RhoCorner = atof(argv[3]);
+    pLength = atof(argv[3]);
     RhoCenter = atof(argv[4]);
     MassGuess = atof(argv[5]);
     betaedge  = atof(argv[6]);
+    
+    // Print out information
+    TELLME_Inputs();
+    
+    
+    // Determines grid cell size for a given ratio of Z to R
+    double ratio = 1.0;
+    DeltaR = pLength/((double)(N+1.0));
+    DeltaZ = ratio*pLength/((double)(Z+1.0));
+    cout << DeltaR << " " << DeltaZ << endl;
     
     
     // Allocate Contour Array
