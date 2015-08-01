@@ -3,7 +3,7 @@
 
 inline void TELLME_Inputs()
 {
-    cout << "You had " << endl;
+    //cout << "You had " << endl;
 }
 
 

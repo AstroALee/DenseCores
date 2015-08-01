@@ -1,12 +1,15 @@
+// Dense Core files
 #include "DenseCoreGlobals.H"
 #include "ErrorMessages.H"
 
-
+// Numerical Recipes
 #include "nr3.h"
 #include "stepper.h"
 #include "odeint.h"
 #include "stepperdopr5.h"
 
+double errbeta(double beta_top) { return fabs(beta_top-betaedge)/betaedge; }
+double errrho(double density_edge) { return fabs(density_edge-1.0)/1.0; }
 
 struct derivs {
     
@@ -26,9 +29,6 @@ struct derivs {
     void operator() (const double t, VecDoub_I &y, VecDoub_O &dydx) {
         
         // Fixed parameters?
-        setncst(0.5);   // <--- either 1/2 or 2/3
-        
-        setalph( sqrt(8.0*PI/beta) );
         double cs=1.0;
         double Gcst=1.0;
         
@@ -64,12 +64,13 @@ void MagCylinder(double* density, double* initbeta)
 {
     // Number of integrations
     int Nint = 0;
-    int Nmax = 100;
+    int Nmax = 50;
     
-    //Set for particular problem (independent variable = t)
+    // Set for particular problem (independent variable = t)
+    // Integrate to the contour
     const int Nvar = 2;
     const double t_start = 0.0;
-    const double t_end   = ((double)N+1)*DeltaR;
+    const double t_end   = pLength; //VContour[Z];
     
     
     //ODE tolerances and such
@@ -80,33 +81,42 @@ void MagCylinder(double* density, double* initbeta)
     derivs derv;
     
     
+    derv.setncst(0.5);                      // <- either 1/2 or 2/3
     derv.setbeta(betaedge);
+    derv.setalph( sqrt(8.0*PI/betaedge) );  // <- determined at edge where rho=1
+    
     
     // Output (NR version)
     int Nouts = 2*N;
-    Output out(Nouts);
     double DeltaOut = t_end / ( (double) Nouts);
     
     
     
-    
-    //Initialize
+    //Initial guess, use analytic relationship (when n = 1/2, this will be exact)
     VecDoub ystart(Nvar);
-    ystart[0] = 1.0;
+    double yfirstguess = 2.44;
+    double ysecondguess;
+    double errorfirst;
+    ystart[0] = yfirstguess;
     ystart[1] = 0.0;
     
     //Get ready to integrate
-    Odeint< StepperDopr5<derivs> > ode(ystart,t_start,t_end,atol,rtol,h1,hmin,out,derv);
+
     //Odeint< StepperRoss<derivs> > ode(ystart,t_start,t_end,atol,rtol,h1,hmin,out,derv);
     
-    int i,j,k;
-    double betatol = 0.1;
+    int i=0,j,k;
+    double betatol = 0.00001;
+    double rhotol = 0.00001;
+    
     while(true)
     {
         
         // INTEGRATE!
+        Output out(Nouts);
+        Odeint< StepperDopr5<derivs> > ode(ystart,t_start,t_end,atol,rtol,h1,hmin,out,derv);
         ode.integrate();
         
+
         // Interpolate onto our grid
         for(i=0;i<N+1;i++)
         {
@@ -114,9 +124,9 @@ void MagCylinder(double* density, double* initbeta)
             // find the two output cells it lies between
             for(j=1;j<out.count;j++)
             {
-                if( out.xsave[j] > (0.5+(double)i)*DeltaR )
+                if( out.xsave[j] > cPos(i,DeltaR) ) //(0.5+(double)i)*DeltaR )
                 {
-                    double Xsave = (0.5+(double)i)*DeltaR;
+                    double Xsave = cPos(i,DeltaR); //(0.5+(double)i)*DeltaR;
                     
                     double Yright = out.ysave[0][j];
                     double Yleft = out.ysave[0][j-1];
@@ -125,19 +135,21 @@ void MagCylinder(double* density, double* initbeta)
                     double m = (Yright-Yleft)/(Xright-Xleft);
                     
                     density[i] = Yleft + m*(Xsave-Xleft);
+                    //cout << Xsave << " " << density[i] << endl;
                     break;
                     
                 }
             }
-            
         }
     
-        // Now Interpolated, check the value of Beta at the upper-right edge
+        // Now Interpolated, check the value of Beta and rho at the upper-right edge
         // First need to find the density value at R = VContour[Z];
         double density_edge;
         
+        
         for(j=1;j<out.count;j++)
         {
+            
             if( out.xsave[j] > VContour[Z] )
             {
                 double Xsave = VContour[Z];
@@ -149,23 +161,56 @@ void MagCylinder(double* density, double* initbeta)
                 double m = (Yright-Yleft)/(Xright-Xleft);
                 
                 density_edge = Yleft + m*(Xsave-Xleft);
-                cout << "density edge " << density_edge << endl;
+                //cout << "density edge = " << density_edge << endl;
                 break;
                 
             }
         }
         
+        
         // Get beta by analytic relationships
         double beta_top = derv.ret_beta() * pow(density_edge,1-2*derv.ret_n());
+        cout << "density edge = " << density_edge << " and beta edge = " << beta_top << endl;
         
-        
-        // If this matches betaedge, we're done. Else iterate until we converge.
-        double errbeta = fabs(beta_top-betaedge)/betaedge;
-        
-        if(errbeta < betatol) break;
+        // If these match betaedge and P/c^2, we're done. Else iterate until we converge.
+        // Units of P_0 = c_s = 1 implies P/c^2 = 1.
+        if(errbeta(beta_top) < betatol  &&  errrho(density_edge) < rhotol)
+        {
+            // Success?
+            cout << "Success with error = " << errrho(density_edge) << endl;
+            break;
+        }
+
         
         // Create a new guess and start again
-        derv.setbeta( betaedge * pow(density_edge,2*derv.ret_n()-1) );
+        if(Nint==0)
+        {
+            errorfirst = errrho(density_edge);
+            ysecondguess = yfirstguess*1.01;
+            ystart[0] = ysecondguess;
+            ystart[1] = 0.0;
+        }
+        else
+        {
+            //Newton-Rhapson
+            double dennew;
+            
+            double m = (errrho(density_edge) - errorfirst)/(ysecondguess-yfirstguess);
+            dennew = ysecondguess - (errrho(density_edge) / m);
+            
+            ystart[0] = dennew;
+            ystart[1] = 0.0;
+            
+            // Updates for next Newton-Rhapson, if needed
+            yfirstguess = ysecondguess;
+            ysecondguess = dennew;
+            errorfirst = errrho(density_edge);
+        }
+        
+        
+        cout << "Trying new integration with " << derv.ret_beta() << " and " << ystart[0] << endl;
+        cout << "error = " << errrho(density_edge) << endl;
+        
         
         Nint++;
         if(Nint == Nmax) WATERLOO_MagCylNoConverge(Nint);
@@ -179,8 +224,8 @@ void MagCylinder(double* density, double* initbeta)
     
     
     cout << "Integration Done!" << endl;
-    cout << "Number good steps: " << ode.nok << endl;
-    cout << "Number bad steps:  " << ode.nbad << endl << endl;
+    //cout << "Number good steps: " << ode.nok << endl;
+    //cout << "Number bad steps:  " << ode.nbad << endl << endl;
  
     
     

@@ -11,13 +11,21 @@ dred = [0.6,0,0]
 # Reads in Data as column arrays
 data = genfromtxt('test.txt',delimiter=",",unpack=True)
 
+data2 = genfromtxt('VContour.txt',delimiter=",",unpack=True)
+Cont = data2[:-1]
+
+#array([0.97619,0.974944,0.972449,0.968704,0.963713,0.957488,0.950057,0.941474,0.931819,0.921583,0.910675,0.899113,0.887149,0.875269,0.863747,0.852763,0.842738,0.834093,0.827274,0.822515,0.82006])
+
+
+idx = int(sys.argv[1])
+
 #doesn't include last end point in array. If you want the first five
 #items, do 0:6.
 r = data[0,:]
 z = data[1,:]
-PlotMe = data[2,:]
+PlotMe = data[idx,:]
 
-pLength = float(sys.argv[1])
+pLength = float(sys.argv[2])
 
 DeltaR = pLength/(max(r)+1.0)
 DeltaZ = pLength/(max(z)+1.0)
@@ -45,7 +53,14 @@ plt.axis([0, pLength, 0, 1.0*pLength])
 # Axis labels
 plt.xlabel(r'Distance    $R$') #TeX requires the r
 plt.ylabel(r'Distance    $Z$')
-plt.title(r'Gravitational Potential')
+
+
+if(idx==2): plt.title(r'Gravitational Potential')
+if(idx==3): plt.title(r'A')
+if(idx==4): plt.title(r'Q')
+if(idx==5): plt.title(r'Gravitational Potential')
+
+
 #Moves the x-axis down a little
 plt.gca().xaxis.labelpad=9 #5 is default
 
@@ -71,12 +86,11 @@ plt.pcolor(RGrid,ZGrid,log10(PlotPlot),cmap='Paired',vmin=log10(plot2min),vmax=l
 plt.colorbar()
 
 
-Cont = array([0.484375,0.483296,0.481134,0.477885,0.473559,0.468187,0.461843,0.454656,0.447168,0.439292,0.431268,0.423517,0.416623,0.410899,0.40677,0.404603])
-
 area = pi*2.0
 
 
-plt.scatter(Cont,ZGrid[:-1],s=area,c='black')
+plt.scatter(Cont,ZGrid[:-1]+0.5*DeltaZ,s=1.5*area,c='black')
+plt.plot(Cont,ZGrid[:-1]+0.5*DeltaZ,c='black',linewidth=1,alpha=0.3)
 
 
 #Text

@@ -45,6 +45,21 @@ void PrintScreen(double ***curState)
 
 
 // Prints out the data to a file
+void PrintV(double V[],int j)
+{
+    int i;
+    
+    ofstream myfile;
+    myfile.open("VContour.txt");
+    for(i=0;i<j+1;i++)
+    {
+        myfile << V[i] << endl;
+    }
+    myfile.close();
+
+}
+
+// Prints out the data to a file
 void PrintFile(double ***curState)
 {
     int i,j,k;
@@ -76,7 +91,6 @@ void InitialA(double ***curState,double* initbeta)
     for(j=0;j<Z+1;j++)
     {
         int idone = 0;
-        int iedge = 0;
         
         for(i=0;i<N+1;i++)
         {
@@ -84,18 +98,21 @@ void InitialA(double ***curState,double* initbeta)
             if(idone==0) if( cPos(i,DeltaR) > VContour[j] )
             {
                 idone = 1;
-                iedge = i-1;
             }
             
-            int idx = i;
-            if(idone==1) idx = iedge;
             
-            double currho = curState[Q][idx][j]*exp(-curState[Vpot][idx][j]);
-            double curbeta = initbeta[idx];
-            double curB = sqrt(8.0*PI*currho/curbeta);
-            double curR = cPos(i,DeltaR); // always i , not idx
+            if(idone) curState[Apot][i][j] = 0;
+            else
+            {
+                double currho = curState[Q][i][j]*exp(-curState[Vpot][i][j]);
+                double curbeta = initbeta[i];
+                double curB = sqrt(8.0*PI*currho/curbeta);
+                double curR = cPos(i,DeltaR); // always i , not idx
+                
+                curState[Apot][i][j] = curB*pow(curR,2)/2.0;
+            }
             
-            curState[Apot][i][j] = curB*pow(curR,2)/2.0;
+       
             
         }
     }
@@ -122,26 +139,26 @@ void InitialQ(double ***curState,double initbeta[])
     
     // Now with the initial density distribution, along with the initial V
     // we can determine the initial Q everywhere
-    // Q == rho*c^2 exp(V/c^2)
+    // Q == rho*c^2 exp(V/c^2) --> rho*exp(V)
     int i,j;
     for(j=0;j<Z+1;j++)
     {
         int idone = 0;
-        int iedge = 0;
         
         for(i=0;i<N+1;i++)
         {
             // Only fills spots left of the right-most V contour.
-            if(idone==0) if( cPos(i,DeltaR) > VContour[j] )
+            if(idone==0 && i>0) if( cPos(i,DeltaR) > VContour[j] )
             {
                idone = 1;
-               iedge = i-1;
+                //cout << "Past VContour at " << i << " when Z = " << j << endl;
             }
             
-            // If left of this contour, use cell data. Else copy edge data.
-            if(idone==0) curState[Q][i][j] = MagDensity[i]*exp(curState[Vpot][i][j]);
-            else curState[Q][i][j] = MagDensity[iedge]*exp(curState[Vpot][iedge][j]);
+            // If left of this contour, use cell data. Else use fixed value (we'll never need it)
+            if(idone) curState[Q][i][j] = 0;//MagDensity[iedge]*exp(curState[Vpot][iedge][j]);
+            else curState[Q][i][j] = MagDensity[i]*exp(curState[Vpot][i][j]);
             
+            //curState[Q][i][j] = MagDensity[i];
         }
     }
     
@@ -217,7 +234,7 @@ void PointMassPotential(double ***curState)
         // If error is low enough, break
         if(error < tol)
         {
-            cout << "Tolerence achieved after " << di << " iterations." << endl;
+            cout << "Potential: Tolerence achieved after " << di << " iterations." << endl;
             break;
         }
         
@@ -256,9 +273,12 @@ void PointMassPotential(double ***curState)
              break;
          }
     
-    cout << VContour[0];
+    cout << "VContour values: " << VContour[0];
     for(j=1;j<Z+1;j++) cout << "," << VContour[j];
     cout << endl;
+    
+    //Print VContour to file
+    PrintV(VContour,Z+1);
     
 }
 

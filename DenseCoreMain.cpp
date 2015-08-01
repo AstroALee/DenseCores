@@ -13,7 +13,6 @@ void FillState(double ***curState)
     // Fills Vpot
     PointMassPotential(curState);
     
-
     // Fills Q
     double initbeta[N+1];
     InitialQ(curState,initbeta);
@@ -43,6 +42,8 @@ void AllocateState(double ***&curState)
 
 int main(int argc, char *argv[])
 {
+    cout << endl << endl;
+    
     // Usual counters
     int i,j,k;
     
@@ -57,6 +58,7 @@ int main(int argc, char *argv[])
     MassGuess = atof(argv[5]);
     betaedge  = atof(argv[6]);
     
+    
     // Print out information
     TELLME_Inputs();
     
@@ -65,11 +67,12 @@ int main(int argc, char *argv[])
     double ratio = 1.0;
     DeltaR = pLength/((double)(N+1.0));
     DeltaZ = ratio*pLength/((double)(Z+1.0));
-    cout << DeltaR << " " << DeltaZ << endl;
+    //cout << DeltaR << " " << DeltaZ << endl;
     
     
     // Allocate Contour Array
     VContour = new double[Z+1];
+    
     
     // Allocate State Data, Fill with initial guesses
     AllocateState(curState);
@@ -85,7 +88,6 @@ int main(int argc, char *argv[])
     PrintFile(curState);
     
     // Publish!
-    
     delete[] VContour;
     return 0;
 }
