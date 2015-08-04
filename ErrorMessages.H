@@ -1,23 +1,30 @@
 /* Error Messages and Info Messages */
 
 
-inline void TELLME_Inputs()
+inline void SHOWME_Inputs(char** argv)
 {
-    //cout << "You had " << endl;
+    cout << "You had N = " << argv[1] << endl;
+    cout << "You had Z = " << argv[2] << endl;
+    cout << "You had pLength = " << argv[3] << endl;
+    cout << "You had rhoCenter = " << argv[4] << endl;
+    cout << "You had MassCore = " << argv[5] << endl;
+    cout << "You had beta = " << argv[6] << endl;
+    cout << endl << endl;
+  
 }
 
 
 inline void WATERLOO_ArgCountCheck(int i)
 {
-    if(i < 8)
+    if(i < 7)
     {
-        cout << "WATERLOO: Not enough arguments (N,Z,Non-Dim Width,RhoCenter,MassGuess,betaedge,n)" << endl;
+        cout << "WATERLOO: Not enough arguments (N,Z,Non-Dim Width,RhoCenter,MassGuess,betaedge)" << endl;
         cout << "You provided " << i-1 << " argument" << Plural(i-1,"s") << "." << endl;
         exit(1);
     }
-    if(i > 8)
+    if(i > 7)
     {
-        cout << "WATERLOO: Too many arguements? (N,Z,Non-Dim Width,RhoCenter,MassGuess,betaedge,n) " << endl;
+        cout << "WATERLOO: Too many arguements? (N,Z,Non-Dim Width,RhoCenter,MassGuess,betaedge) " << endl;
         cout << "You provided " << i-1 << " argument" << Plural(i-1,"s") << "." << endl;
         exit(1);
     }

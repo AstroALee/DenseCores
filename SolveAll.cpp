@@ -9,15 +9,7 @@ void SolveAll(double ***curState)
     solvePoisson(curState);
     
     // Then you solve the induction equation
-    solveMagnetic(curState);
-    
-    // With the updated state, determine if we need to keep relaxing
-    
-    
-    // Once relaxed, calculate the actual mass in the box
-    
-    cout << "asdfasdf " << NStates << endl;
-    
+    //solveMagnetic(curState);
     
 }
 

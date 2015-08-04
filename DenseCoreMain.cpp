@@ -8,18 +8,28 @@ void SolveAll(double ***curState);
 // Fill the state with the initial guess
 void FillState(double ***curState)
 {
-    int i,j,k;
-    
-    // Fills Vpot
-    PointMassPotential(curState);
-    
-    // Fills Q
     double initbeta[N+1];
-    InitialQ(curState,initbeta);
     
+    if(1==1)
+    {
+        
+        // Fills Vpot
+        PointMassPotential(curState);
+        
+        // Fills Q
+        InitialQ(curState,initbeta);
+        
+        // Fills Apot
+        InitialA(curState,initbeta);
+        
+    }
+    else
+    {
+        
+        
+        
+    }
     
-    // Fills Apot
-    InitialA(curState,initbeta);
  
     
 }
@@ -60,7 +70,7 @@ int main(int argc, char *argv[])
     
     
     // Print out information
-    TELLME_Inputs();
+    SHOWME_Inputs(argv);
     
     
     // Determines grid cell size for a given ratio of Z to R
@@ -80,7 +90,7 @@ int main(int argc, char *argv[])
     
     
     // Enter the Grand Solving Loop
-    //SolveAll(curState);
+    SolveAll(curState);
         
     
     // Solution obtained, print

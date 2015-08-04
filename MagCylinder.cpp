@@ -36,6 +36,7 @@ struct derivs {
         double alp2 = alp*alp;
         double nalpcst = -ncst*alp2/4.0/PI;
         
+        // d(rho) = Rhodot
         dydx[0] = y[1];
         
         //Magnetostatic
@@ -47,20 +48,26 @@ struct derivs {
         //dydx[1] = dPsi/r + ddPsi - 4.0*PI*Gcst*y[0] ;
         //dydx[1] = dydx[1] / ( pow(cs,2)/y[0] - nalpcst*pow(y[0],2.*ncst-2.) );
         
+        // d(Rhodot) = RhoDotDot
         dydx[1] = ( 4*PI*Gcst*pow(y[0],2) - dPsi*y[0]/r - nalpcst*(2*ncst-1)*pow(y[0],2*ncst-2)*y[1] + (nalpcst*pow(y[0],2*ncst-1)-cs*cs)*pow(y[1],2)/y[0] ) / ( nalpcst*pow(y[0],2*ncst-1)-cs*cs) ;
         
         
-        //Hydrostatic
-        //dydx[1] = pow(y[1],2)/y[0] - 4*PI*Gcst*pow(y[0],2)/(cs*cs) - y[1]/(t+0.00000001);
+        // Tracks potential as well (V = entry 2, Vdot = entry 3)
         
-        //cout << dydx[1] << endl;
+        // d(V) = Vdot
+        dydx[2] = y[3];
+        // Vdotdot
+        dydx[3] = 4*PI*y[0] - y[3]/r;
+    
+        
+        
     }
     
 };
 
 
 
-void MagCylinder(double* density, double* initbeta)
+void MagCylinder(double* density, double* initbeta, double* an_pot)
 {
     // Number of integrations
     int Nint = 0;
@@ -68,7 +75,7 @@ void MagCylinder(double* density, double* initbeta)
     
     // Set for particular problem (independent variable = t)
     // Integrate to the contour
-    const int Nvar = 2;
+    const int Nvar = 4;
     const double t_start = 0.0;
     const double t_end   = pLength; //VContour[Z];
     
@@ -89,24 +96,25 @@ void MagCylinder(double* density, double* initbeta)
     // Output (NR version)
     int Nouts = 2*N;
     double DeltaOut = t_end / ( (double) Nouts);
-    
-    
+    double VpotRho[N];
     
     //Initial guess, use analytic relationship (when n = 1/2, this will be exact)
     VecDoub ystart(Nvar);
-    double yfirstguess = 2.44;
+    double yfirstguess = 1.86;
     double ysecondguess;
     double errorfirst;
     ystart[0] = yfirstguess;
     ystart[1] = 0.0;
+    ystart[2] = 0.0;
+    ystart[3] = 0.0;
     
     //Get ready to integrate
 
     //Odeint< StepperRoss<derivs> > ode(ystart,t_start,t_end,atol,rtol,h1,hmin,out,derv);
     
     int i=0,j,k;
-    double betatol = 0.00001;
-    double rhotol = 0.00001;
+    double betatol = 0.0001;
+    double rhotol = 0.0001;
     
     while(true)
     {
@@ -114,6 +122,7 @@ void MagCylinder(double* density, double* initbeta)
         // INTEGRATE!
         Output out(Nouts);
         Odeint< StepperDopr5<derivs> > ode(ystart,t_start,t_end,atol,rtol,h1,hmin,out,derv);
+        cout << "Integrating." << endl;
         ode.integrate();
         
 
@@ -124,7 +133,7 @@ void MagCylinder(double* density, double* initbeta)
             // find the two output cells it lies between
             for(j=1;j<out.count;j++)
             {
-                if( out.xsave[j] > cPos(i,DeltaR) ) //(0.5+(double)i)*DeltaR )
+                if( out.xsave[j] >= cPos(i,DeltaR) ) //(0.5+(double)i)*DeltaR )
                 {
                     double Xsave = cPos(i,DeltaR); //(0.5+(double)i)*DeltaR;
                     
@@ -136,6 +145,7 @@ void MagCylinder(double* density, double* initbeta)
                     
                     density[i] = Yleft + m*(Xsave-Xleft);
                     //cout << Xsave << " " << density[i] << endl;
+                    
                     break;
                     
                 }
@@ -150,7 +160,7 @@ void MagCylinder(double* density, double* initbeta)
         for(j=1;j<out.count;j++)
         {
             
-            if( out.xsave[j] > VContour[Z] )
+            if( out.xsave[j] >= VContour[Z] )
             {
                 double Xsave = VContour[Z];
                 
@@ -178,6 +188,32 @@ void MagCylinder(double* density, double* initbeta)
         {
             // Success?
             cout << "Success with error = " << errrho(density_edge) << endl;
+            
+            // Interpolate Potential
+            for(i=0;i<N+1;i++)
+            {
+                // for grid cell i
+                // find the two output cells it lies between
+                for(j=1;j<out.count;j++)
+                {
+                    if( out.xsave[j] >= cPos(i,DeltaR) ) //(0.5+(double)i)*DeltaR )
+                    {
+                        double Xsave = cPos(i,DeltaR); //(0.5+(double)i)*DeltaR;
+                        
+                        double Yright = out.ysave[2][j];
+                        double Yleft = out.ysave[2][j-1];
+                        double Xright = out.xsave[j];
+                        double Xleft = out.xsave[j-1];
+                        double m = (Yright-Yleft)/(Xright-Xleft);
+                        
+                        an_pot[i] = Yleft + m*(Xsave-Xleft);
+                        //cout << Xsave << " " << density[i] << endl;
+                        break;
+                        
+                    }
+                }
+            }
+            
             break;
         }
 
@@ -189,6 +225,8 @@ void MagCylinder(double* density, double* initbeta)
             ysecondguess = yfirstguess*1.01;
             ystart[0] = ysecondguess;
             ystart[1] = 0.0;
+            ystart[2] = 0.0;
+            ystart[3] = 0.0;
         }
         else
         {
@@ -200,6 +238,9 @@ void MagCylinder(double* density, double* initbeta)
             
             ystart[0] = dennew;
             ystart[1] = 0.0;
+            ystart[2] = 0.0;
+            ystart[3] = 0.0;
+
             
             // Updates for next Newton-Rhapson, if needed
             yfirstguess = ysecondguess;
@@ -208,7 +249,7 @@ void MagCylinder(double* density, double* initbeta)
         }
         
         
-        cout << "Trying new integration with " << derv.ret_beta() << " and " << ystart[0] << endl;
+        cout << "Trying new integration with beta = " << derv.ret_beta() << " and density = " << ystart[0] << endl;
         cout << "error = " << errrho(density_edge) << endl;
         
         
@@ -218,6 +259,7 @@ void MagCylinder(double* density, double* initbeta)
             
     }
     
+       
     // Interpolate beta onto grid
     for(j=0;j<N+1;j++) initbeta[j] = derv.ret_beta() * pow(density[j],1-2*derv.ret_n());
    
@@ -229,9 +271,15 @@ void MagCylinder(double* density, double* initbeta)
  
     
     
+    cout << "Density values: " << density[0];
+    for(j=1;j<N+1;j++) cout << ", " << density[j];
+    cout << endl;
+
     
-    
-    // Now interpolate the answer onto the density array and beta onto the density array
+    cout << "Potential values: " << an_pot[0];
+    for(j=1;j<N+1;j++) cout << ", " << an_pot[j];
+    cout << endl;
+
     
     
 

@@ -25,8 +25,8 @@ extern double DeltaR;
 extern double DeltaZ;
 
 extern double* VContour;
-extern double RightContour;
-
+extern double ContourVpot;
+extern double ContourQ;
 
 
 // Enumeration Definitions (should be the same number as NStates above)
