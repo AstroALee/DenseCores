@@ -17,6 +17,7 @@ double ***curState;
 
 /* Needed In Solving */
 double *VContour;
+double *RhoTop;
 
 
 // Header that extern defines the above variables. Since they are defined
@@ -25,10 +26,42 @@ double *VContour;
 #include "DenseCoreGlobals.H"
 #include "ErrorMessages.H"
 
+#if DEBUG
+double *ContourValues;
+#endif
 
 // Functions
 void MagCylinder(double*,double*,double*);
 
+
+
+// Linearly Interpolate an array onto a point. Returns value.
+inline double LInt(double* Xarray, double* Yarray, double point, int size)
+{
+    double value = 0;
+    int found = 0;
+    
+    // find the two points surrounding 'point' in the X array
+    // Assumes X array is arranged in ascending value
+    int i;
+    for(i=1;i<size;i++) if( Xarray[i] >= point)
+    {
+        double RightY = Yarray[i];
+        double LeftY  = Yarray[i-1];
+        double RightX = Xarray[i];
+        double LeftX  = Xarray[i-1];
+        
+        double m = (RightY-LeftY)/(RightX-LeftX);
+        
+        value = LeftY + m*(point-LeftX);
+        found = 1;
+        break;
+    }
+    
+    if(!found) cout << "Interpolated value was not found!" << endl;
+    
+    return value;
+}
 
 
 // Prints out the data to the screen
@@ -36,7 +69,7 @@ void PrintScreen(double ***curState)
 {
     int i,j,k;
     
-    for(j=0; j< N+1; j++) for(k=0;k<Z+1;k++)
+    for(j=0; j< N; j++) for(k=0;k<Z;k++)
     {
         cout << j << "," << k;
         for(i = 0; i< NStates; i++) cout << "," << curState[i][j][k];
@@ -52,7 +85,7 @@ void PrintV(double V[],int j)
     
     ofstream myfile;
     myfile.open("VContour.txt");
-    for(i=0;i<j+1;i++)
+    for(i=0;i<j;i++)
     {
         myfile << V[i] << endl;
     }
@@ -67,7 +100,7 @@ void PrintFile(double ***curState)
     
     ofstream myfile;
     myfile.open("test.txt");
-    for(j=0; j< N+1; j++) for(k=0;k<Z+1;k++)
+    for(j=0; j< N; j++) for(k=0;k<Z;k++)
     {
         myfile << j << "," << k;
         for(i = 0; i< NStates; i++) myfile << "," << curState[i][j][k];
@@ -89,11 +122,11 @@ void InitialA(double ***curState,double* initbeta)
     // B_0 = sqrt(8*pi*rho/beta)
     
     int i,j;
-    for(j=0;j<Z+1;j++)
+    for(j=0;j<Z;j++)
     {
         int idone = 0;
         
-        for(i=0;i<N+1;i++)
+        for(i=0;i<N;i++)
         {
             // Only fills spots left of the right-most V contour.
             if(idone==0) if( cPos(i,DeltaR) > VContour[j] )
@@ -131,8 +164,8 @@ void InitialQ(double ***curState,double initbeta[])
     // To get the initial Q, we need the initial density distribution.
     
     // Creates the array that will hold the density
-    double MagDensity[N+1];
-    fill_n(MagDensity,N+1,0);
+    double MagDensity[N];
+    fill_n(MagDensity,N,0);
     
     // Integrates the fluid equations so that the density is that of
     // an isothermal magnetized cylinder. Iterates until beta equals a
@@ -140,19 +173,53 @@ void InitialQ(double ***curState,double initbeta[])
     // the V=cst. surface.
     double an_pot[N];
     MagCylinder(MagDensity,initbeta,an_pot);
-    
+    for(i=0;i<N;i++) RhoTop[i] = MagDensity[i];
     
     
     // Test, resets potential
-    if(1)
-    {
-        for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++) curState[Vpot][i][j] = an_pot[i];
-        for(j=0;j<Z+1;j++) VContour[j] = pLength - 0.5*DeltaR;
-        ContourVpot = an_pot[N];
+#if DEBUG
+        int WhichDebug = 1;
         
-        //Print VContour to file
-        PrintV(VContour,Z+1);
-    }
+        if(WhichDebug==1)
+        {
+            for(i=0;i<N;i++) for(j=0;j<Z;j++) curState[Vpot][i][j] = 1.0 + an_pot[i];
+            for(j=0;j<Z;j++) VContour[j] = pLength - 0.5*DeltaR;
+            ContourVpot = 1.0 + an_pot[N-1];
+            
+            for(j=0;j<Z;j++) ContourValues[j] = ContourVpot;
+            
+            cout << "ContourV " << ContourVpot << endl;
+            //Print VContour to file
+            PrintV(VContour,Z);
+        }
+        else if(WhichDebug==2)
+        {
+            for(j=0;j<Z;j++) VContour[j] = pLength - (0.5*DeltaR)*((double)j+2.0)/2.0;
+            
+            for(i=0;i<N;i++) an_pot[i] = an_pot[i]+1;
+            
+            for(i=0;i<N;i++) for(j=0;j<Z;j++) curState[Vpot][i][j] = an_pot[i];
+            
+            // Doesn't really mean much in this debugging case.
+            ContourVpot = 1.0 + an_pot[N-1];
+            
+            // Interpolate Contour Value
+            double Xvalue[N];
+            for(i=0;i<N;i++) Xvalue[i] = cPos(i,DeltaR);
+            for(j=0;j<Z;j++) ContourValues[j] = LInt(Xvalue,an_pot,VContour[j],N);
+            
+            // Re-write values right of these locations
+            for(j=0;j<Z;j++) for(i=0;i<N;i++)
+                if(cPos(i,DeltaR) >= VContour[j]) curState[Vpot][i][j] = ContourValues[j];
+            
+            cout << "Contour Values" << endl;
+            cout << ContourValues[0];
+            for(j=1;j<Z;j++) cout << " " << ContourValues[j];
+            cout << endl;
+            
+            PrintV(VContour,Z);
+        }
+#endif
     
     
     
@@ -166,22 +233,21 @@ void InitialQ(double ***curState,double initbeta[])
     ContourQ = 1*ContourVpot;
     cout << "Contour Q = " << ContourQ << endl;
     
-    for(j=0;j<Z+1;j++)
+    for(j=0;j<Z;j++)
     {
         int idone = 0;
         
-        for(i=0;i<N+1;i++)
+        for(i=0;i<N;i++)
         {
-            // Only fills spots left of the right-most V contour.
-            if(idone==0 && i>0) if( cPos(i,DeltaR) > VContour[j] )
-            {
-               idone = 1;
-               //cout << "Past VContour at " << i << " when Z = " << j << endl;
-            }
+            
             
             // If left of this contour, use cell data. Else use fixed value (we'll never need it)
-            if(idone) curState[Q][i][j] = ContourQ;
-            else curState[Q][i][j] = MagDensity[i]*exp(curState[Vpot][i][j]);
+            curState[Q][i][j] = MagDensity[i]*exp(curState[Vpot][i][j]);
+            if( cPos(i,DeltaR) >= VContour[j]) curState[Q][i][j] = ContourQ;
+            
+#if DEBUG
+            if( cPos(i,DeltaR) >= VContour[j]) curState[Q][i][j] = ContourQ;
+#endif
             
             //curState[Q][i][j] = MagDensity[i];
         }
@@ -213,12 +279,12 @@ void PointMassPotential(double ***curState)
     
     // Previous state array
     double **PotPrevious;
-    PotPrevious = new double *[N+1];
-    for(i=0;i<N+1;i++) PotPrevious[i] = new double[Z+1];
+    PotPrevious = new double *[N];
+    for(i=0;i<N;i++) PotPrevious[i] = new double[Z];
     
     // Clears arrays
-    for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++) PotPrevious[i][j]=0.0;
-    for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++) curState[Vpot][i][j]=0.0;
+    for(i=0;i<N;i++) for(j=0;j<Z;j++) PotPrevious[i][j]=0.0;
+    for(i=0;i<N;i++) for(j=0;j<Z;j++) curState[Vpot][i][j]=0.0;
     
     double Ppos = 0.0; // holds particle position
     double di = 0.0; // holds distance to particle
@@ -228,10 +294,10 @@ void PointMassPotential(double ***curState)
     {
         
         // Updates particle position
-        Ppos = di*2.0*(1+Z)*DeltaZ;
+        Ppos = di*2.0*Z*DeltaZ;
         
         // Updates potential
-        for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++)
+        for(i=0;i<N;i++) for(j=0;j<Z;j++)
         {
             // Get position of current cell
             double CposR = cPos(i,DeltaR); //(0.5+(double)i)*DeltaR;
@@ -249,7 +315,7 @@ void PointMassPotential(double ***curState)
         // Checks to see how much potential has changed from previous state
         // Loops over all particles and calculates the max percent error
         double error = 1.0;
-        if(di != 0.0 ) for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++)
+        if(di != 0.0 ) for(i=0;i<N;i++) for(j=0;j<Z;j++)
         {
             double curError = fabs( (curState[Vpot][i][j] - PotPrevious[i][j])/curState[Vpot][i][j]);
             if(curError<error) error = curError;
@@ -268,7 +334,7 @@ void PointMassPotential(double ***curState)
         // Else add some more particles and start again
         
         // Copy current potential to previous for error comparison
-        for(i=0;i<N+1;i++) for(j=0;j<Z+1;j++)
+        for(i=0;i<N;i++) for(j=0;j<Z;j++)
             PotPrevious[i][j] = curState[Vpot][i][j];
         
         di += 1.0;
@@ -292,10 +358,10 @@ void PointMassPotential(double ***curState)
     // Determines R location of V=ContourVpot surface for each value of Z
     // After which grid cell on top boundary is V > ContourVpot ?
     
-    ContourVpot = curState[Vpot][N][0];
+    ContourVpot = curState[Vpot][N-1][0];
     cout << "ContourVpot = " << ContourVpot << endl;
     
-    for(j=0;j<Z+1;j++) for(i=0;i<N+1;i++)
+    for(j=0;j<Z;j++) for(i=0;i<N;i++)
         if(curState[Vpot][i][j] >= ContourVpot)
          {
              if(i>0)
@@ -317,14 +383,14 @@ void PointMassPotential(double ***curState)
     
     
     cout << "VContour values: " << VContour[0];
-    for(j=1;j<Z+1;j++) cout << "," << VContour[j];
+    for(j=1;j<Z;j++) cout << "," << VContour[j];
     cout << endl;
     
     
     
     
     //Print VContour to file
-    PrintV(VContour,Z+1);
+    PrintV(VContour,Z);
     
 }
 

@@ -9,10 +9,10 @@ import sys
 dred = [0.6,0,0]
 
 # Reads in Data as column arrays
-data = genfromtxt('test2.txt',delimiter=",",unpack=True)
+data = genfromtxt('test.txt',delimiter=",",unpack=True)
 
 data2 = genfromtxt('VContour.txt',delimiter=",",unpack=True)
-Cont = data2[:-1]
+Cont = data2[:]
 
 #array([0.97619,0.974944,0.972449,0.968704,0.963713,0.957488,0.950057,0.941474,0.931819,0.921583,0.910675,0.899113,0.887149,0.875269,0.863747,0.852763,0.842738,0.834093,0.827274,0.822515,0.82006])
 
@@ -41,14 +41,14 @@ print plotmax
 
 
 # If potential or Q, adjust so the min value is 0.
-if(idx==2 or idx==4): PlotMe = array([y - plotmin for y in PlotMe])
+#if(idx==2 or idx==4): PlotMe = array([y - plotmin for y in PlotMe])
 
 
 
 pLength = float(sys.argv[2])
 
-DeltaR = pLength/(max(r)+1.0)
-DeltaZ = pLength/(max(z)+1.0)
+DeltaR = pLength/(max(r)+1)
+DeltaZ = pLength/(max(z)+1)
 
 
 RGrid = arange(max(r)+2)*DeltaR ## Grid is the edges, not the center of cells
@@ -56,9 +56,17 @@ ZGrid = arange(max(z)+2)*DeltaZ
 
 PlotPlot = PlotMe.reshape(max(r)+1,max(z)+1).T # Need the transpose (.T)
 
+#print PlotMe
+
+#print PlotPlot
+
 plotmin = min(PlotMe)
 plotmax = max(PlotMe)
 plot2min = min(n for n in PlotMe if n!=plotmin)
+plot2max = min(n for n in PlotMe if n!=plotmax)
+
+print plotmin
+print plotmax
 
 
 #plt.setp(ax,xticklabels=[]) #turns off labels
@@ -103,13 +111,12 @@ ax.tick_params(axis='x',pad=9)
 
 
 #plt.pcolor(RGrid,ZGrid,log10(PlotPlot),cmap='Paired',vmin=log10(plot2min),vmax=log10(plotmax))
-plt.pcolor(RGrid,ZGrid,(PlotPlot),cmap='Paired',vmin=(plot2min),vmax=(plotmax))
+plt.pcolor(RGrid,ZGrid,(PlotPlot),cmap='Paired',vmin=(plotmin),vmax=(plotmax))
 
 plt.colorbar()
 
 
 area = pi*2.0
-
 
 plt.scatter(Cont,ZGrid[:-1]+0.5*DeltaZ,s=1.5*area,c='black')
 plt.plot(Cont,ZGrid[:-1]+0.5*DeltaZ,c='black',linewidth=1,alpha=0.3)

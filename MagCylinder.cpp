@@ -11,6 +11,39 @@
 double errbeta(double beta_top) { return fabs(beta_top-betaedge)/betaedge; }
 double errrho(double density_edge) { return fabs(density_edge-1.0)/1.0; }
 
+
+// Linearly Interpolate an array onto a point. Returns value.
+inline double LInt(VecDoub Xarray, MatDoub Yarray, double point, int size,int elem)
+{
+    double value = 0;
+    int found = 0;
+    
+    // find the two points surrounding 'point' in the X array
+    // Assumes X array is arranged in ascending value
+    int i;
+    for(i=1;i<size;i++) if( Xarray[i] >= point)
+    {
+        double RightY = Yarray[elem][i];
+        double LeftY  = Yarray[elem][i-1];
+        double RightX = Xarray[i];
+        double LeftX  = Xarray[i-1];
+        
+        double m = (RightY-LeftY)/(RightX-LeftX);
+        
+        value = LeftY + m*(point-LeftX);
+        found = 1;
+        break;
+    }
+    
+    if(!found) cout << "Interpolated value was not found!" << endl;
+    
+    return value;
+}
+
+
+
+
+
 struct derivs {
     
     void setbeta(double b){ beta = b;}
@@ -126,61 +159,29 @@ void MagCylinder(double* density, double* initbeta, double* an_pot)
         ode.integrate();
         
 
-        // Interpolate onto our grid
-        for(i=0;i<N+1;i++)
-        {
-            // for grid cell i
-            // find the two output cells it lies between
-            for(j=1;j<out.count;j++)
-            {
-                if( out.xsave[j] >= cPos(i,DeltaR) ) //(0.5+(double)i)*DeltaR )
-                {
-                    double Xsave = cPos(i,DeltaR); //(0.5+(double)i)*DeltaR;
-                    
-                    double Yright = out.ysave[0][j];
-                    double Yleft = out.ysave[0][j-1];
-                    double Xright = out.xsave[j];
-                    double Xleft = out.xsave[j-1];
-                    double m = (Yright-Yleft)/(Xright-Xleft);
-                    
-                    density[i] = Yleft + m*(Xsave-Xleft);
-                    //cout << Xsave << " " << density[i] << endl;
-                    
-                    break;
-                    
-                }
-            }
-        }
+        // Interpolate density onto our grid
+        for(i=0;i<N;i++) density[i] = LInt(out.xsave, out.ysave, cPos(i,DeltaR), out.count,0);
     
+        // Interpolate Potential onto our grid
+        for(i=0;i<N;i++) an_pot[i] = LInt(out.xsave,out.ysave,cPos(i,DeltaR),out.count,2);
+        
+        
         // Now Interpolated, check the value of Beta and rho at the upper-right edge
         // First need to find the density value at R = VContour[Z];
         double density_edge;
+        density_edge = LInt(out.xsave,out.ysave,VContour[Z-1],out.count,0);
         
-        
-        for(j=1;j<out.count;j++)
-        {
-            
-            if( out.xsave[j] >= VContour[Z] )
-            {
-                double Xsave = VContour[Z];
-                
-                double Yright = out.ysave[0][j];
-                double Yleft = out.ysave[0][j-1];
-                double Xright = out.xsave[j];
-                double Xleft = out.xsave[j-1];
-                double m = (Yright-Yleft)/(Xright-Xleft);
-                
-                density_edge = Yleft + m*(Xsave-Xleft);
-                //cout << "density edge = " << density_edge << endl;
-                break;
-                
-            }
-        }
+        // Test
+#if DEBUG
+            density_edge = LInt(out.xsave,out.ysave,cPos(N-1,DeltaR),out.count,0);
+            //ContourVpot = an_pot[N-1];
+#endif
         
         
         // Get beta by analytic relationships
         double beta_top = derv.ret_beta() * pow(density_edge,1-2*derv.ret_n());
         cout << "density edge = " << density_edge << " and beta edge = " << beta_top << endl;
+        
         
         // If these match betaedge and P/c^2, we're done. Else iterate until we converge.
         // Units of P_0 = c_s = 1 implies P/c^2 = 1.
@@ -188,32 +189,6 @@ void MagCylinder(double* density, double* initbeta, double* an_pot)
         {
             // Success?
             cout << "Success with error = " << errrho(density_edge) << endl;
-            
-            // Interpolate Potential
-            for(i=0;i<N+1;i++)
-            {
-                // for grid cell i
-                // find the two output cells it lies between
-                for(j=1;j<out.count;j++)
-                {
-                    if( out.xsave[j] >= cPos(i,DeltaR) ) //(0.5+(double)i)*DeltaR )
-                    {
-                        double Xsave = cPos(i,DeltaR); //(0.5+(double)i)*DeltaR;
-                        
-                        double Yright = out.ysave[2][j];
-                        double Yleft = out.ysave[2][j-1];
-                        double Xright = out.xsave[j];
-                        double Xleft = out.xsave[j-1];
-                        double m = (Yright-Yleft)/(Xright-Xleft);
-                        
-                        an_pot[i] = Yleft + m*(Xsave-Xleft);
-                        //cout << Xsave << " " << density[i] << endl;
-                        break;
-                        
-                    }
-                }
-            }
-            
             break;
         }
 
@@ -261,7 +236,7 @@ void MagCylinder(double* density, double* initbeta, double* an_pot)
     
        
     // Interpolate beta onto grid
-    for(j=0;j<N+1;j++) initbeta[j] = derv.ret_beta() * pow(density[j],1-2*derv.ret_n());
+    for(j=0;j<N;j++) initbeta[j] = derv.ret_beta() * pow(density[j],1-2*derv.ret_n());
    
     
     
@@ -272,12 +247,12 @@ void MagCylinder(double* density, double* initbeta, double* an_pot)
     
     
     cout << "Density values: " << density[0];
-    for(j=1;j<N+1;j++) cout << ", " << density[j];
+    for(j=1;j<N;j++) cout << ", " << density[j];
     cout << endl;
 
     
     cout << "Potential values: " << an_pot[0];
-    for(j=1;j<N+1;j++) cout << ", " << an_pot[j];
+    for(j=1;j<N;j++) cout << ", " << an_pot[j];
     cout << endl;
 
     

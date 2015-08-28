@@ -18,7 +18,7 @@ inline void WATERLOO_ArgCountCheck(int i)
 {
     if(i < 7)
     {
-        cout << "WATERLOO: Not enough arguments (N,Z,Non-Dim Width,RhoCenter,MassGuess,betaedge)" << endl;
+        cout  << "WATERLOO: Not enough arguments (N,Z,Non-Dim Width,RhoCenter,MassGuess,betaedge)" << endl;
         cout << "You provided " << i-1 << " argument" << Plural(i-1,"s") << "." << endl;
         exit(1);
     }

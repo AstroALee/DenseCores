@@ -13,7 +13,7 @@ data = genfromtxt('test.txt',delimiter=",",unpack=True)
 data2 = genfromtxt('test2.txt',delimiter=",",unpack=True)
 
 dataC = genfromtxt('VContour.txt',delimiter=",",unpack=True)
-Cont = dataC[:-1]
+Cont = dataC[:]
 
 #array([0.97619,0.974944,0.972449,0.968704,0.963713,0.957488,0.950057,0.941474,0.931819,0.921583,0.910675,0.899113,0.887149,0.875269,0.863747,0.852763,0.842738,0.834093,0.827274,0.822515,0.82006])
 
@@ -27,13 +27,17 @@ z = data[1,:]
 
 
 if(idx==5):
-    Gpot = data[2,:]
+    GpotTemp = data[2,:]
+    gpotmin = min(GpotTemp)
+    Gpot = array([y - gpotmin for y in GpotTemp])
     Q = data[4,:]
-    ePot = array([exp(-g) for g in Gpot])
+    ePot = array([exp(-g) for g in GpotTemp])
     PlotMe = multiply(Q,ePot)
-    Gpot2 = data2[2,:]
+    GpotTemp2 = data2[2,:]
+    gpotmin2 = min(GpotTemp2)
+    Gpot2 = array([y - gpotmin2 for y in GpotTemp2])
     Q2 = data2[4,:]
-    ePot2 = array([exp(-g) for g in Gpot2])
+    ePot2 = array([exp(-g) for g in GpotTemp2])
     PlotMe2 = multiply(Q2,ePot2)
 else:
     PlotMe = data[idx,:]
@@ -51,8 +55,8 @@ print plotmax2
 
 
 # If potential or Q, adjust so the min value is 0.
-if(idx==2 or idx==4): PlotMe = array([y - plotmin for y in PlotMe])
-if(idx==2 or idx==4): PlotMe2 = array([y - plotmin2 for y in PlotMe2])
+#if(idx==2 or idx==4): PlotMe = array([y - plotmin for y in PlotMe])
+#if(idx==2 or idx==4): PlotMe2 = array([y - plotmin2 for y in PlotMe2])
 
 
 
@@ -66,15 +70,23 @@ RGrid = arange(max(r)+2)*DeltaR ## Grid is the edges, not the center of cells
 ZGrid = arange(max(z)+2)*DeltaZ
 
 
-diff = 100*divide( subtract(PlotMe2,PlotMe) , PlotMe2 )
+diff = divide( subtract(PlotMe2,PlotMe) , PlotMe2 )
 where_are_nans = isnan(diff)
 diff[where_are_nans] = 0
+
+
 
 Plotdiff = diff.reshape(max(r)+1,max(z)+1).T # Need the transpose (.T)
 
 diffmin = min(diff)
 diffmax = max(diff)
 
+diffmin2 = min(n for n in diff if n!=diffmin)
+diffmax2 = max(n for n in diff if n!=diffmax)
+
+print "Mean error is " + str(mean(diff))
+print "Top 2 Max errors are " + str(diffmax) + " " + str(diffmax2)
+print "Top 2 Min errors are " + str(diffmin) + " " + str(diffmin2)
 
 #plt.setp(ax,xticklabels=[]) #turns off labels
 
@@ -90,10 +102,10 @@ plt.xlabel(r'Distance    $R$') #TeX requires the r
 plt.ylabel(r'Distance    $Z$')
 
 
-if(idx==2): plt.title(r'Gravitational Potential Diff %')
-if(idx==3): plt.title(r'A Diff %')
-if(idx==4): plt.title(r'Q Diff %')
-if(idx==5): plt.title(r'Density Diff %')
+if(idx==2): plt.title(r'Gravitational Potential Error $\epsilon$')
+if(idx==3): plt.title(r'A Error $\epsilon$')
+if(idx==4): plt.title(r'Q Error $\epsilon$')
+if(idx==5): plt.title(r'Density Error $\epsilon$')
 
 
 #Moves the x-axis down a little
@@ -119,7 +131,7 @@ ax.tick_params(axis='x',pad=9)
 
 
 #plt.pcolor(RGrid,ZGrid,log10(PlotPlot),cmap='Paired',vmin=log10(plot2min),vmax=log10(plotmax))
-plt.pcolor(RGrid,ZGrid,Plotdiff,cmap='Paired',vmin=min(diff),vmax=max(diff))
+plt.pcolor(RGrid,ZGrid,Plotdiff,cmap='Paired',vmin=diffmin,vmax=diffmax)
 
 plt.colorbar()
 
