@@ -7,6 +7,7 @@ import sys
 
 # Colors
 dred = [0.6,0,0]
+dgreen = [0,0.6,0]
 
 # Reads in Data as column arrays
 data = genfromtxt('test.txt',delimiter=",",unpack=True)
@@ -17,14 +18,12 @@ Cont = dataC[:]
 
 #array([0.97619,0.974944,0.972449,0.968704,0.963713,0.957488,0.950057,0.941474,0.931819,0.921583,0.910675,0.899113,0.887149,0.875269,0.863747,0.852763,0.842738,0.834093,0.827274,0.822515,0.82006])
 
-
 idx = int(sys.argv[1])
 
 #doesn't include last end point in array. If you want the first five
 #items, do 0:6.
 r = data[0,:]
 z = data[1,:]
-
 
 if(idx==5):
     GpotTemp = data[2,:]
@@ -116,7 +115,7 @@ ax = plt.gca()
 ax.tick_params(which='both',width=2)
 ax.tick_params(which='major',size=12)
 ax.tick_params(which='minor',size=7)
-	 
+
 #moves numbers out a little
 ax.tick_params(axis='y',pad=9)
 ax.tick_params(axis='x',pad=9)
@@ -155,4 +154,4 @@ plt.show()
 #plt.savefig('figure3.eps')
 
 #Restores defaults
-mpl.rcdefaults() 
+mpl.rcdefaults()
