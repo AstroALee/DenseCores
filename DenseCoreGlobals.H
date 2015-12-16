@@ -8,7 +8,7 @@
 
 
 /* Debugging? */
-#define DEBUG 0
+#define DEBUG 1
 
 /* Enuemrate Declaration */
 #define NStates 3
@@ -17,7 +17,7 @@
 #define PI 3.14159265359
 #define GCST 1.0 //6.67259e-8
 
-// Global variables, so they can be global across different files
+// Global variables, so they can be visible across different files
 extern int N;
 extern int Z;
 extern double pLength;
@@ -28,12 +28,17 @@ extern double betaedge;
 extern double DeltaR;
 extern double DeltaZ;
 
-extern double* VContour;
+extern double* VContour; // going to be an array
+extern double* RhoTop;
 extern double ContourVpot;
 extern double ContourQ;
 
-#if DEBUG 
+extern int firstASolve;
+
+#if DEBUG
 extern double* ContourValues;
+extern double* ContourATop;
+extern double* ContourASide;
 #endif
 
 
@@ -45,6 +50,7 @@ using namespace std;
 
 
 // Position based on grid cell and cell length
+// Based on cell centers
 inline double cPos(int i,double delta)
 {
     double idd = ((double)i);

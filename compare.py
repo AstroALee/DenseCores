@@ -61,18 +61,24 @@ print plotmax2
 
 pLength = float(sys.argv[2])
 
-DeltaR = pLength/(max(r)+1.0)
+DeltaR = pLength/(max(r)+1.0) # +1 because indexing starts at 0 : max(r,z)+1 = R,Z
 DeltaZ = pLength/(max(z)+1.0)
 
 
 RGrid = arange(max(r)+2)*DeltaR ## Grid is the edges, not the center of cells
-ZGrid = arange(max(z)+2)*DeltaZ
+ZGrid = arange(max(z)+2)*DeltaZ ## so add 2 instead of just adding 1
 
 
 diff = divide( subtract(PlotMe2,PlotMe) , PlotMe2 )
+#diff = subtract(PlotMe2,PlotMe)
+
+L2Norm = 0
+for i in range(0,len(PlotMe2)): L2Norm = L2Norm + pow( PlotMe2[i]-PlotMe[i] ,2)
+L2Norm = sqrt(L2Norm)
+print("The L2Norm is = " + str(L2Norm))
+
 where_are_nans = isnan(diff)
 diff[where_are_nans] = 0
-
 
 
 Plotdiff = diff.reshape(max(r)+1,max(z)+1).T # Need the transpose (.T)
@@ -102,6 +108,7 @@ plt.ylabel(r'Distance    $Z$')
 
 
 if(idx==2): plt.title(r'Gravitational Potential Error $\epsilon$')
+#if(idx==2): plt.title(r'A Error $\epsilon$')
 if(idx==3): plt.title(r'A Error $\epsilon$')
 if(idx==4): plt.title(r'Q Error $\epsilon$')
 if(idx==5): plt.title(r'Density Error $\epsilon$')
@@ -127,7 +134,9 @@ ax.tick_params(axis='x',pad=9)
 
 
 
-
+#overrides?
+#diffmin = -0.15
+#diffmax = 0.15
 
 #plt.pcolor(RGrid,ZGrid,log10(PlotPlot),cmap='Paired',vmin=log10(plot2min),vmax=log10(plotmax))
 plt.pcolor(RGrid,ZGrid,Plotdiff,cmap='Paired',vmin=diffmin,vmax=diffmax)

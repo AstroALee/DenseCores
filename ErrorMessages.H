@@ -10,7 +10,13 @@ inline void SHOWME_Inputs(char** argv)
     cout << "You had MassCore = " << argv[5] << endl;
     cout << "You had beta = " << argv[6] << endl;
     cout << endl << endl;
-  
+
+}
+
+inline void WATERLOO_ShouldNotBeHere(string s)
+{
+    cout << "In a place you shouldn't be (File: " << s << ")" << endl;
+    exit(1);
 }
 
 
@@ -28,8 +34,8 @@ inline void WATERLOO_ArgCountCheck(int i)
         cout << "You provided " << i-1 << " argument" << Plural(i-1,"s") << "." << endl;
         exit(1);
     }
-    
-    
+
+
 }
 
 inline void WATERLOO_InitPotNotConverging(double i, double tol)
