@@ -21,12 +21,12 @@ inline double LInt(VecDoub Xarray, MatDoub Yarray, double point, int size,int el
     // find the two points surrounding 'point' in the X array
     // Assumes X array is arranged in ascending value
     int i;
-    for(i=1;i<size;i++) if( Xarray[i] >= point)
+    for(i=0;i<size-1;i++) if( Xarray[i+1] >= point)
     {
-        double RightY = Yarray[elem][i];
-        double LeftY  = Yarray[elem][i-1];
-        double RightX = Xarray[i];
-        double LeftX  = Xarray[i-1];
+        double RightY = Yarray[elem][i+1];
+        double LeftY  = Yarray[elem][i];
+        double RightX = Xarray[i+1];
+        double LeftX  = Xarray[i];
 
         double m = (RightY-LeftY)/(RightX-LeftX);
 
@@ -114,7 +114,7 @@ void MagCylinder(double* density, double* initbeta, double* an_pot)
 
 
     //ODE tolerances and such
-    const double atol = 1.0e-4;
+    const double atol = 1.0e-5;
     const double rtol = atol;
     const double h1 = 0.001;
     const double hmin = 1.0e-15;

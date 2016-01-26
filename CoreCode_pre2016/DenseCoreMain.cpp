@@ -1,7 +1,7 @@
 /* Dense Core */
 #include "DenseCoreMain.H"
 
-
+#include <time.h>
 
 int main(int argc, char *argv[])
 {
@@ -85,6 +85,8 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+
+
 // Fill the state with the initial guess
 void FillState(double ***curState)
 {
@@ -102,6 +104,7 @@ void FillState(double ***curState)
     InitialA(curState,initbeta);
 
 }
+
 
 // Includes boundary (n=0; all z from 0 up to and including Z & z=Z; all n from 0 up to and including N)
 void AllocateState(double ***&State)

@@ -50,10 +50,10 @@ double EllipticComplete(double k, int which)
 {
     // Checks and balances
     if (k < 0 or k > 1) return 0; // throw error
-    if (which < 0 or which > 1) return 0; // throw error
+    //if (which < 0 or which > 1) return 0; // throw error
 
     double A[100],B[100];
-    double e = 1e-7;
+    double e = 1e-11;
     double e1,e2;
     int j, m; double pi;
     pi = 4*atan(1);
@@ -64,7 +64,7 @@ double EllipticComplete(double k, int which)
     // Generate improved values
     A[n]=(A[n-1]+B[n-1])/2.0;
     B[n]=sqrt(A[n-1]*B[n-1]);
-    if (fabs(A[n]-B[n]) > e) goto e100;
+    if (fabs(A[n]-B[n]) > e) {goto e100;}
     e1=pi/2.0/A[n];
     e2=2.0;
     m=1;
@@ -206,17 +206,18 @@ void InitialA(double ***curState,double* initbeta)
 #if DEBUG
 
     // Radius of ring is a, in our units (must be bigger than entire domain)
-    // Current is icur, mu_0 = 1  (both overall constants, should not matter in finite difference scheme)
+    // Current is icur, mu_0*i = 1 (overall constant, so who cares what the value is)
     for(i=0;i<N;i++) for(j=0;j<Z;j++)
     {
-        double a = 0.60;
+        double a = 1.0;
         double icur = 2.0;
+        double mu_0 = 1.0/icur;
 
         double k = 4.0*a*cPos(i,DeltaR) / ( pow(cPos(j,DeltaZ),2) + pow( a + cPos(i,DeltaR),2) );
         k = sqrt(k);
 
-        curState[Apot][i][j] = icur*sqrt(a/cPos(i,DeltaR))/k/PI * ( (1-0.5*k*k)*EllipticComplete(k,1) - EllipticComplete(k,2));
-        cout << "(" << cPos(i,DeltaR) << ", " << cPos(j,DeltaZ) << ") k = " << k << " " << EllipticComplete(k,1) << " " << EllipticComplete(k,2) << endl;
+        curState[Apot][i][j] = 1.0*mu_0*icur*sqrt(a/cPos(i,DeltaR))/(k*PI) * ( (1-0.5*k*k)*EllipticComplete(k,1) - EllipticComplete(k,2) );
+        //cout << "(" << cPos(i,DeltaR) << ", " << cPos(j,DeltaZ) << ") k = " << k << " E1 = " << EllipticComplete(k,1) << " E2 = " << EllipticComplete(k,2) << endl;
     }
 
     // Sets boundary values
@@ -278,7 +279,7 @@ void InitialQ(double ***curState,double initbeta[])
         {
             // Overwrites potential with analytic answer for cylinder
             // Note we've added a fixed constant.
-            for(i=0;i<N;i++) for(j=0;j<Z;j++) curState[Vpot][i][j] = 1.0 + an_pot[i];
+            for(i=0;i<N;i++) for(j=0;j<Z;j++) curState[Vpot][i][j] = 1*(0.00 + an_pot[i]);
 
             // Counter value is fixed.
             ContourVpot = curState[Vpot][N-1][Z-1];
@@ -341,11 +342,6 @@ void InitialQ(double ***curState,double initbeta[])
             // If left of this contour, use cell data. Else use fixed value (we'll never need it)
             curState[Q][i][j] = MagDensity[i]*exp(curState[Vpot][i][j]);
             if( cPos(i,DeltaR) >= VContour[j]) curState[Q][i][j] = ContourQ;
-
-#if DEBUG
-            // Why do I have this?
-            if( cPos(i,DeltaR) >= VContour[j]) curState[Q][i][j] = ContourQ;
-#endif
 
         }
     }

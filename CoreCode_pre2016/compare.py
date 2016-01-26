@@ -158,8 +158,8 @@ plt.plot(Cont,ZGrid[:-1]+0.5*DeltaZ,c='black',linewidth=1,alpha=0.3)
 
 
 # Creates Plot
-plt.show()
-#plt.savefig('Plot.pdf')
+#plt.show()
+plt.savefig('Compare.pdf')
 #plt.savefig('figure3.eps')
 
 #Restores defaults

@@ -100,9 +100,12 @@ void createAmpereMatrix(double ***curState, MatrixXd& AmMatrix, VectorXd& Source
 
     }
 
-    // Source Vector = 4 pi r * exp(-V) * dq/dPhi
-    for(i=0;i<(Z)*(N);i++)
-        Source(i) = -4.0*PI*pow(DeltaR,2)*cPos(Ridx(i),DeltaR)*exp(-curState[Vpot][Ridx(i)][Zidx(i)])*dqdp[i];
+    // Source Vector = 4 pi DeltaR^2 * r * exp(-V) * dq/dPhi
+    for(i=0;i<(Z)*(N);i++) {
+        double Src = -4.0*PI*pow(DeltaR,2)*cPos(Ridx(i),DeltaR)*exp(-curState[Vpot][Ridx(i)][Zidx(i)])*dqdp[i];
+        Source(i) = Src;
+        cout << "Source(" << i << ") = " << Src << endl;
+    }
 
 #if DEBUG
     for(i=0;i<Z*N;i++) Source(i) = 0.0; // initial conditions should be a force-free field.
@@ -124,13 +127,15 @@ void createAmpereMatrix(double ***curState, MatrixXd& AmMatrix, VectorXd& Source
         double upV    = rho;
         double downV  = rho;
         double midV   = -2.0*(1.0+rho+2*pow(wi,2));
+                //-2.0*rho - cPos(Ridx(i),DeltaR)/cPos(Ridx(i+1),DeltaR)
+                //- cPos(Ridx(i),DeltaR)/cPos(Ridx(i-1),DeltaR) ;
 
         // Check to see if we're at the bottom
         if( Zidx(i)==0 )
         {
             // Then the V_(k-1) term gets added to the V_k+1 term instead
             //midV = midV + downV;
-            upV = upV + downV;
+            midV = midV + downV;
             downV = 0.0; // <-- Not really needed, there's no matrix entry
 
             // If debugging, still using periodic Bcond
@@ -141,8 +146,8 @@ void createAmpereMatrix(double ***curState, MatrixXd& AmMatrix, VectorXd& Source
         if( Zidx(i) == Z-1 )
         {
             // Then the V_(k+1) term gets added to the V_k-1 term instead
-            //midV = midV + upV;
-            downV = downV + upV;
+            midV = midV + upV;
+            //downV = downV + upV;
             upV = 0.0; // <-- Not really needed, there's no matrix entry
 
 #if DEBUG
@@ -161,8 +166,10 @@ void createAmpereMatrix(double ***curState, MatrixXd& AmMatrix, VectorXd& Source
         {
             // Then the V_(i-1) term gets added to the V_i+1 term instead
             //midV = midV + leftV;
-            rightV = rightV + leftV;
+            //rightV = rightV + leftV;
             leftV = 0.0; // <-- Not really needed, there's no matrix entry
+            midV = midV + leftV; //-2.0*rho - cPos(Ridx(i),DeltaR)/cPos(Ridx(i+1),DeltaR);
+
 
             // If debugging, still using periodic Bcond
         }
@@ -293,8 +300,8 @@ void createPoissonMatrix(double ***curState, MatrixXd& PoMatrix, VectorXd& Sourc
             if( Zidx(i)==0 )
             {
                 // Then the V_(k-1) term gets added to the V_k+1 term instead
-                //midV = midV + downV;
-                upV = upV + downV;
+                midV = midV + downV;
+                //upV = upV + downV;
                 downV = 0.0; // <-- Not really needed, there's no matrix entry
             }
 
@@ -303,8 +310,8 @@ void createPoissonMatrix(double ***curState, MatrixXd& PoMatrix, VectorXd& Sourc
             if( Zidx(i) == Z-1 )
             {
                 // Then the V_(k+1) term gets added to the V_k-1 term instead
-                //midV = midV + upV;
-                downV = downV + upV;
+                midV = midV + upV;
+                //downV = downV + upV;
                 upV = 0.0; // <-- Not really needed, there's no matrix entry
             }
 
@@ -312,8 +319,8 @@ void createPoissonMatrix(double ***curState, MatrixXd& PoMatrix, VectorXd& Sourc
             if( Ridx(i) == 0 )
             {
                 // Then the V_(i-1) term gets added to the V_i+1 term instead
-                //midV = midV + leftV;
-                rightV = rightV + leftV;
+                midV = midV + leftV;
+                //rightV = rightV + leftV;
                 leftV = 0.0; // <-- Not really needed, there's no matrix entry
             }
 
@@ -477,8 +484,8 @@ void solveMagnetic(double ***curState)
     // Then fill
     createAmpereMatrix(curState,AmMatrix,Source);
 
-    cout << AmMatrix << endl;
-    cout << Source << endl;
+    //cout << AmMatrix << endl;
+    //cout << Source << endl;
 
     // Now call LinAlgebra package to invert the matrix and obtain the new potential values
     Soln = AmMatrix.colPivHouseholderQr().solve(Source);

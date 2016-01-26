@@ -97,7 +97,7 @@ ax = plt.gca()
 ax.tick_params(which='both',width=2)
 ax.tick_params(which='major',size=12)
 ax.tick_params(which='minor',size=7)
-	 
+
 #moves numbers out a little
 ax.tick_params(axis='y',pad=9)
 ax.tick_params(axis='x',pad=9)
@@ -108,6 +108,9 @@ ax.tick_params(axis='x',pad=9)
 #plt.plot(xline,yline,'k:',linewidth=2.0)
 
 
+# Overwrite min max plotted
+#plotmin = 0
+#plotmax = 20
 
 
 #plt.pcolor(RGrid,ZGrid,log10(PlotPlot),cmap='Paired',vmin=log10(plot2min),vmax=log10(plotmax))
@@ -129,9 +132,9 @@ plt.plot(Cont,ZGrid[:-1]+0.5*DeltaZ,c='black',linewidth=1,alpha=0.3)
 
 
 # Creates Plot
-plt.show()
-#plt.savefig('Plot.pdf')
+#plt.show()
+plt.savefig('Plot.pdf')
 #plt.savefig('figure3.eps')
 
 #Restores defaults
-mpl.rcdefaults() 
+mpl.rcdefaults()
