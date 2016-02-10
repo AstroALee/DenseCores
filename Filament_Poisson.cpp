@@ -54,6 +54,7 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
         if( cPos(Ridx(s),DeltaR) == 0 )
         {
             // Useful numbers
+            wi = 0;
             f  = DeltaR/DeltaZ;
 
             // r=0 version, derived using L'Hopital on the original DiffEq and employing dV/dr=0
@@ -80,15 +81,15 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
         // Now we will change some of these values to employ the boundary conditions
 
         // The top boundary employs a dV/dz = 0 condition so at z=N-1, V(z=N) = V(r=N-2)
-        if( Zidx(s) == N-1 ) Mdown = Mdown + Mup; Mup = 0; // there is no up
+        if( Zidx(s) == N-1 ) { Mdown = Mdown + Mup; Mup = 0;} // there is no up
 
 
         // The bottom boundary employs a dV/dz = 0 condition so at z=0, V(z=-1) = V(z=1)
-        if( Zidx(s) == 0 ) Mup = Mup + Mdown;  Mdown = 0; // there is no down
+        if( Zidx(s) == 0 ) { Mup = Mup + Mdown;  Mdown = 0;} // there is no down
 
 
         // The left boundary employs a dV/dr = 0 condition, so V(r=-1) = V(r=1)
-        if( Ridx(s) == 0 ) Mright = Mleft + Mright; Mleft = 0;  // there is no left
+        if( Ridx(s) == 0 ) { Mright = Mleft + Mright; Mleft = 0;}  // there is no left
 
 
         // The right boundary employs a dV/dr = f(r,z) condition, so at r=M-1: V(M) = V(M-2) + 2*dr*f(r,z)

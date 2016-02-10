@@ -184,7 +184,7 @@ void detDVDR()
 
     double rEdge = RADIALRATIO*zL;
 
-    for(i=0;i<N;i++) VRight[i] = VRight[i] + Ccst[0]/rEdge;
+    for(i=0;i<N;i++) VRight[i] = VRight[i] + Ccst[0]/rL;
 
     for(i=0;i<N;i++) cout << VRight[i] << endl;
 
