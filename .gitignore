@@ -1,4 +1,6 @@
 Test*
+Output.out
+FilamentCode
 eigen/
 *.o
 *.pdf

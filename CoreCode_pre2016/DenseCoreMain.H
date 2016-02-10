@@ -155,9 +155,6 @@ void PrintFile(double ***curState)
         myfile << endl;
     }
     myfile.close();
-
-
-
 }
 
 

@@ -4,28 +4,29 @@
 # $^ :: matches all the targets, removes duplicates
 # $@ :: matches the first target
 
-GCC = g++
-CPPFLAGS = -O2 #-Wall
+
+# Variables you can change
+# Uniform grid cell size (same in r as in z)
+YESUNIFORM = 0
+CYLINDERRADRAT = 1.0
+DOONE = 1
+DEBUG = 1
+CPPFLAGS = -DDOONE=$(DOONE) -DDEBUG=$(DEBUG) -DUNIFORM=$(YESUNIFORM) -DRADIALRATIO=$(CYLINDERRADRAT)
+
+# Code compiling related stuff
+GCC = g++ 
+CPPFLAGS += -O2 #-Wall
 INCLUDES = -I ./eigen/
 
-OUTPUTNAME = DenseCoreCode
-OFILEFOLDER = OutFiles
+CPPFLAGS += $(INCLUDES)
 
-all: DenseCore
+OUTPUTNAME = FilamentCode
 
-DenseCore: DenseCoreMain.o SolveAll.o MagCylinder.o
-	$(GCC) $(CPPFLAGS) $(INCLUDES) -o $(OUTPUTNAME) $^ 
-	mv *.o $(OFILEFOLDER)/
+all: Filament_Main
 
-DenseCoreMain.o : DenseCoreMain.cpp
-	$(GCC) $(CPPFLAGS) $(INCLUDES) -c $<
-
-SolveAll.o : SolveAll.cpp
-	$(GCC) $(CPPFLAGS) $(INCLUDES) -c $<
-
-MagCylinder.o : MagCylinder.cpp
-	$(GCC) $(CPPFLAGS) $(INCLUDES) -c $<
+Filament_Main : Filament_Main.o Filament_PrepInit.o Filament_SolveAll.o Filament_MagCyl.o Filament_Poisson.o Filament_Ampere.o
+	$(GCC) $(CPPFLAGS) -o $(OUTPUTNAME) $^
+	rm ./*.o
 
 clean:
 	rm $(OUTPUTNAME)
-	rm $(OFILEFOLDER)/*.o
