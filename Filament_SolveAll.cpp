@@ -12,31 +12,46 @@ void Converge()
     int i;
     for(i=0;i<ConvergeLoopMax;i++)
     {
+        cout << "Beginning iteration " << i << endl;
 
         // Solve Poisson
         SolvePoisson();
 
         // Solve Ampere
-        //SolveAmpere();
+        SolveAmpere();
+
+        // Relax V and A, use this to recalc boundary, Q, and Rho
+        RelaxSoln();
 
         // Find the new filament boundary (Vbdy[])
-        //NewVBdy();
+        NewVBdy();
 
         // Update Q
-        //UpdateQ();
+        UpdateQ();
 
         // Update Rho
-        //UpdateRho();
+        UpdateRho();
 
         // Converged?
-        ConvergeTest(i,done); if(done || DOONE) break;
-
-        // We never converged, sad face
-        if(i+1==ConvergeLoopMax && DOONE==0)
-        {
-            cout << "We never converged message" << endl;
-        }
+        ConvergeTest(i,done);
+        if(done) { cout << "Converged! Breaking out." << endl; break; }
+        
     }
+
+};
+
+// Relax
+void RelaxSoln()
+{
+    int i,j;
+
+    for(i=0;i<M;i++) for(j=0;j<N;j++)
+    {
+        //cout << curState[Vpot][i][j] << " " << newState[Vpot][i][j] << endl;
+        curState[Vpot][i][j] = relaxFrac*newState[Vpot][i][j] + (1.0-relaxFrac)*curState[Vpot][i][j];
+        curState[Apot][i][j] = relaxFrac*newState[Apot][i][j] + (1.0-relaxFrac)*curState[Apot][i][j];
+    }
+
 
 };
 
@@ -54,42 +69,65 @@ void NewVBdy()
     // Vpot value we're interested in
     for(i=0;i<M;i++) Vrow[i] = curState[Vpot][i][N-1];
 
-    // Upate the global variable
-    Vbdy = LIntY(Vrow,rEdge,DeltaR,M);
+    // Upate the global variable (boundary is always at rEdge on the top row)
+    int lastIDX = 0;
+    Vbdy = LIntY(Vrow,rEdge,DeltaR,M,lastIDX);
     cout << "Vbdy is now " << Vbdy << endl;
 
-    // For each row, find where Vcontour (N-1 -> skip the top)
-    for(j=0;j<N-1;j++)
+    // For each row, find where Vcontour (N-2 -> skip the top)
+    // Do so by searching for indices near the last row's index (to avoid jumps for double-values)
+    for(j=N-2;j<0;j--)
     {
-        // Find first instance of two indices where Vval lie between
-        // This should be fine if V(r,z) is monotonic in r for a given z
-        int idx=0;
-        for(i=1;i<M;i++)
-        {
-            double Vleft = curState[Vpot][i-1][j];
-            double Vright= curState[Vpot][i][j];
-            //cout << "i=" << i << endl;
+        int idx=-1;
 
-            if( (Vleft <= Vbdy && Vbdy <= Vright) || (Vleft >= Vbdy && Vbdy >= Vright) )
+        // Find first instance of two instances where Vval falls between
+        for(i=0;i<M;i++)
+        {
+            if(lastIDX-i-1 >= 0) // look left
             {
-                idx = i;
-                break;
+                double VleftVal = curState[Vpot][lastIDX-i-1][j];
+                double VrightVal = curState[Vpot][lastIDX-i][j];
+
+                if( (VleftVal <= Vbdy && Vbdy <= VrightVal) || (VleftVal >= Vbdy && Vbdy >= VrightVal) )
+                {
+                    idx = lastIDX-i; // right coordinate
+                    break;
+                }
+            }
+            else if(lastIDX+i+1 <= M-1) // look right
+            {
+                double VleftVal = curState[Vpot][lastIDX+i][j];
+                double VrightVal = curState[Vpot][lastIDX+i+1][j];
+
+                if( (VleftVal <= Vbdy && Vbdy <= VrightVal) || (VleftVal >= Vbdy && Vbdy >= VrightVal) )
+                {
+                    idx = lastIDX+i+1; // right coordinate
+                    break;
+                }
             }
         }
 
-        if(idx==0)
+
+        if(idx==-1)
         {
-            // never found one
-            cout << "Vbdy update problem! Never found a cell (z=" << j << ")" << endl;
+            // Didn't find anything
+            cout << "DID NOT FIND VALUE" << endl;
+            VContour[j] = VContour[j+1];
         }
+        else
+        {
+            // Interpolate
+            double y1 = curState[Vpot][idx-1][j];
+            double y2= curState[Vpot][idx][j];
+            double x1 = cPos(idx-1,DeltaR);
+            double x2 = cPos(idx,DeltaR);
+            double m = (y2-y1)/(x2-x1);
 
-        double y1 = curState[Vpot][idx-1][j];
-        double y2= curState[Vpot][idx][j];
-        double x1 = cPos(i-1,DeltaR);
-        double x2 = cPos(i,DeltaR);
-        double m = (y2-y1)/(x2-x1);
+            VContour[j] = x1 + (Vbdy-y1)/m;
 
-        VContour[j] = x1 + (Vbdy-y1)/m;
+            // Update lastIDX
+            lastIDX = idx;
+        }
 
     }
 
@@ -117,7 +155,7 @@ void UpdateQ()
 
     // Since rho does not change on the upper row, we can update Q using its definition
     for(i=0;i<M;i++)
-        if(cPos(i,DeltaR)<=VContour[i]) QMap[i] = curState[Rho][i][N-1]*exp(curState[Vpot][i][N-1]);
+        if(cPos(i,DeltaR)<=VContour[N-1]) QMap[i] = RhoTop[i]*exp(curState[Vpot][i][N-1]);
         else QMap[i] = Qbdy;
 
     // Top row is done
@@ -129,33 +167,39 @@ void UpdateQ()
         double localPhi = cPos(i,DeltaR)*curState[Apot][i][j];
         int idx;
 
-        // Find the two indices localPhi lies between
-        for(idx=1;idx<M;idx++)
+        if(cPos(i,DeltaR)>VContour[j])
         {
-            double Pleft = cPos(i-1,DeltaR)*curState[Apot][i-1][j];
-            double Pright= cPos(i,DeltaR)*curState[Apot][i][j];
-
-            if( (Pleft <= localPhi && localPhi <= Pright) || (Pleft >= localPhi && localPhi >= Pright) )
+            curState[Q][i][j] = Qbdy;
+        }
+        else
+        {
+            // Find the two indices localPhi lies between
+            for(idx=1;idx<M;idx++)
             {
-                break;
+                double Pleft = cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
+                double Pright= cPos(idx,DeltaR)*curState[Apot][idx][j];
+
+                if( (Pleft <= localPhi && localPhi <= Pright) || (Pleft >= localPhi && localPhi >= Pright) )
+                {
+                    break;
+                }
             }
+
+            if(idx==M-1)
+            {
+                // Possibly didn't find, but we know Phi analytically?
+            }
+
+            // We now know which two Phi values the local Phi lies between. Intropolate a Q value
+
+            double y1 = QMap[idx-1];
+            double y2 = QMap[idx];
+            double x1 = cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
+            double x2 = cPos(idx,DeltaR)*curState[Apot][idx][j];
+            double m = (y2-y1)/(x2-x1);
+
+            curState[Q][i][j] = y1 + m*(localPhi-x1);
         }
-
-        if(idx==M-1)
-        {
-            // Possibly didn't find
-        }
-
-        // We now know which two Phi values the local Phi lies between. Intropolate a Q value
-
-        double y1 = QMap[idx-1];
-        double y2 = QMap[idx];
-        double x1 = cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
-        double x2 = cPos(idx,DeltaR)*curState[Apot][idx][j];
-        double m = (y2-y1)/(x2-x1);
-
-        curState[Q][i][j] = y1 + m*(localPhi-x1);
-
     }
 
 };
@@ -202,7 +246,7 @@ void ConvergeTest(int loopnum, int& done)
                 locerrA = fabs( curState[Apot][i][j] - prevState[Apot][i][j] )
                         / fabs(curState[Apot][i][j]); }
 
-        cout << i << "," << j << " : " << locerrV << " " << curDV-preDV << " " << curState[Vpot][i][j] - prevState[Vpot][i][j] << endl;
+        //cout << i << "," << j << " : " << locerrV << " " << curDV-preDV << " " << curState[Vpot][i][j] - prevState[Vpot][i][j] << " " << curState[Apot][i][j] - prevState[Apot][i][j] << endl;
 
         // Tabulates the max error
         if(locerrV > errV) errV = locerrV;

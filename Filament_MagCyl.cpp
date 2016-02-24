@@ -73,7 +73,7 @@ void MagnetizedCylinder(double rEdge)
 
     // going to Newton-Raphson until we find the value of rho_center where rho=1 at rEdge
     int NRidx=0, NRmax = LoopMAX; // set in Filament_Main.H
-    int NRout=3*M;  // need a good number for accurate interpolations
+    int NRout=5*M;  // need a good number for accurate interpolations
 
     // new (first) guess (drawn from averages of typical cases)
     double rhoNG = 10.0*rEdge;
@@ -112,6 +112,7 @@ void MagnetizedCylinder(double rEdge)
         // Update error
         NRerrNG = fabs(rhoSoln-1.0)/1.0; // want rhoSoln to be = 1.0
         cout << "Num " << NRidx << " : rho(rEdge) = " << rhoSoln << " (error = " << NRerrNG << ")" << endl;
+        cout << "rEdge = " << rEdge << endl;
 
         if(NRerrNG < NRtol)
         {
@@ -221,13 +222,20 @@ void UseOutput(Output out,double rEdge)
         if(rPos <= rEdge)
         {
             curState[Vpot][i][j] = LInt(out.xsave,out.ysave,rPos,out.count,2); // 2 = Vpot
-            curState[Apot][i][j] = LInt(out.xsave,out.ysave,rPos,out.count,4); // 4 = Apot
+            //if(rPos==rEdge) cout << "Cyl Vpot " << curState[Vpot][i][j] << endl;
+
             curState[Rho][i][j]  = LInt(out.xsave,out.ysave,rPos,out.count,0); // 0 = Rho
+
+            // We solved for r*A, have to divide by r
+            if(i>0) curState[Apot][i][j] = LInt(out.xsave,out.ysave,rPos,out.count,4)/rPos; // 4 = Apot*r
+
+            if(i>0 && DEBUG==2) curState[Apot][i][j] = curState[Apot][i][j] + 0.3*fabs(rPos*zPos)*(1.0/zL/rL);
+
         }
         else
         {
             // Analytic form for V
-            curState[Vpot][i][j] = Ccst[0]*log(rPos)+Ccst[1];
+            curState[Vpot][i][j] = Ccst[0]*log(rPos)+Ccst[1] ;
 
             // Analytic form for A
             double Binf = sqrt(8.0*PI/betaInf);
@@ -240,12 +248,13 @@ void UseOutput(Output out,double rEdge)
         }
     }
 
-    // Want Vpot = 0 at r = 0
-    // Should have that by default
-    //double Vnorm = curState[Vpot][M-1][0];
-    //for(i=0;i<M;i++) for(j=0;j<N;j++) curState[Vpot][i][j] = curState[Vpot][i][j] - Vnorm;
+
+    // Want Vpot = 0 at top left corner
+    // Should have that by default at this point
+    double Vnorm = curState[Vpot][0][N-1];
+    for(i=0;i<M;i++) for(j=0;j<N;j++) curState[Vpot][i][j] = curState[Vpot][i][j] - Vnorm;
 
     // Also, the exact location of the filament boundary is fixed at the top
     VContour[N-1] = rEdge;
 
-}
+};

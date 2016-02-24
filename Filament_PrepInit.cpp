@@ -23,6 +23,9 @@ void PrepareInitialState()
     CodeHeader("Getting first filament boundary");
     getVbdy();
 
+    // Adjust rho if mExcess > 0
+    adjustRho();
+
     // With V and rho known everywhere, Q is easy
     CodeHeader("Initializing Q");
     InitQ();
@@ -54,7 +57,7 @@ void InitPoints()
 {
 
     // If there's an excess mass, impose the point potential
-    if(mExcess<=0) return;
+    if(mExcess<=0 || DEBUG==1) return;
 
     // Array for the point mass chain
     double PointV[M][N];
@@ -71,6 +74,8 @@ void InitPoints()
     // Mass in code units
     double Mcode = mExcess * Sol2Code;
 
+
+
     while(true)
     {
         PPidx++;
@@ -84,13 +89,10 @@ void InitPoints()
 
             if(i==0 && j==0 && zP==0)
             {
-                // Do nothing (GM/X blows up)
-            }
-            else if(i==0 && j==1 && zP==0)
-            {
-                PointV[0][0] = PointV[0][0] + -1.1*Mcode/X1; // Since we skipped this earlier
-                                                             // 1.1 factor so potential min at 0,0
-                PointV[i][j] = PointV[i][j] + -Mcode/X1;
+                // (GM/X blows up)
+                double up = Mcode/sqrt( pow(cPos(1,DeltaR),2) + pow(cPos(0,DeltaZ),2));
+                double right = Mcode/sqrt( pow(cPos(0,DeltaR),2) + pow(cPos(1,DeltaZ),2));
+                PointV[0][0] = PointV[0][0] - 1.1*max(up,right);
             }
             else
             {
@@ -162,12 +164,12 @@ void detDVDR()
     // Potential grad from point masses
     for(LoopIdx=0;LoopIdx<=PointLoopMax;LoopIdx++)
     {
-        if(Mcode==0) break;
+        if(DEBUG==2 || Mcode==0) break;
 
         for(j=0;j<N;j++)
         {
-            double X1 = sqrt( pow(cPos(i,DeltaR),2) + pow(cPos(j,DeltaZ)-zP,2) );
-            double X2 = sqrt( pow(cPos(i,DeltaR),2) + pow(cPos(j,DeltaZ)+zP,2) );
+            double X1 = sqrt( pow(cPos(M-1,DeltaR),2) + pow(cPos(j,DeltaZ)-zP,2) );
+            double X2 = sqrt( pow(cPos(M-1,DeltaR),2) + pow(cPos(j,DeltaZ)+zP,2) );
 
             VRight[j] = VRight[j] + Mcode/pow(X1,2);
             if(zP>0) VRight[j] = VRight[j] + Mcode/pow(X2,2);
@@ -180,13 +182,14 @@ void detDVDR()
     // V has the form V = C1*ln(r) + C2
     // so dV/dr = C1/r
     // C1 = Vdot*rEdge, C2 = V(rEdge) - C1*ln(rEdge)
-    // This assumes the right boundary is outside the filament
+    // This assumes the right boundary is at the filament boundary or outside the filament bdy
 
-    double rEdge = RADIALRATIO*zL;
-
+    // We're at r = rL (not necessarily rEdge = filament boundary)
     for(i=0;i<N;i++) VRight[i] = VRight[i] + Ccst[0]/rL;
 
-    for(i=0;i<N;i++) cout << VRight[i] << endl;
+    cout << "VRight = " << VRight[0];
+    for(i=1;i<N;i++) cout << ", " << VRight[i];
+    cout << endl;
 
 };
 
@@ -200,8 +203,14 @@ void getVbdy()
     // Vpot value we're interested in
     for(i=0;i<M;i++) Vrow[i] = curState[Vpot][i][N-1];
 
+    for(i=0;i<M;i++) cout <<  Vrow[i] << " ";
+    cout << endl;
+
     // Upate the global variable
-    Vbdy = LIntY(Vrow,rEdge,DeltaR,M);
+    int lastIDX;
+    if(rRatio>1) Vbdy = LIntY(Vrow,rEdge,DeltaR,M,lastIDX);
+    else Vbdy = curState[Vpot][M-1][N-1];
+    
     cout << "Vbdy is " << Vbdy << endl;
 
     VContour[N-1] = rEdge; // Should have already done this
@@ -214,13 +223,13 @@ void getVbdy()
         int idx=0;
         for(i=1;i<M;i++)
         {
+            idx = i;
             double Vleft = curState[Vpot][i-1][j];
             double Vright= curState[Vpot][i][j];
             //cout << "i=" << i << endl;
 
             if( (Vleft <= Vbdy && Vbdy <= Vright) || (Vleft >= Vbdy && Vbdy >= Vright) )
             {
-                idx = i;
                 break;
             }
         }
@@ -249,26 +258,40 @@ void getVbdy()
 };
 
 
+void adjustRho()
+{
+    int i,j;
+
+    for(i=0;i<M;i++) for(j=0;j<N;j++)
+    {
+        if( cPos(i,DeltaR) <= VContour[j] && curState[Rho][i][j]==0 ) curState[Rho][i][j]=1;
+    }
+};
+
 void InitQ()
 {
     // Q = rho * cs^2 exp(V/cs^2)
 
     // First, find Q value at boundary (where rho = 1 by definition)
     double Qbdy = 1.0 * exp(Vbdy);
+    cout << "Init Qbdy = " << Qbdy << endl;
 
     // Loop over all cells, if left of boundary, evaluate Q, else assign value at bdy
     int i,j;
     for(i=0;i<M;i++) for(j=0;j<N;j++)
     {
-        if( cPos(i,DeltaR) <= VContour[i] )
+        if( cPos(i,DeltaR) <= VContour[j] )
         {
-            curState[Q][i][j] = curState[Rho][i][j]*exp(curState[Vpot][i][j]);
+            curState[Q][i][j] = (curState[Rho][i][j])*exp(curState[Vpot][i][j]);
+            if(DEBUG==2) curState[Q][i][j] = curState[Q][i][j] + 1.0*cPos(i,DeltaR)*cPos(j,DeltaZ)/zL/rL;
         }
         else
         {
             curState[Q][i][j] = Qbdy;
         }
     }
+
+    //for(i=0;i<M;i++) for(j=0;j<N;j++) cout << i << "," << j << " : " << curState[Q][i][j] << endl;
 
 
 };

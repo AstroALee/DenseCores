@@ -3,6 +3,7 @@
 */
 
 #include <stdio.h>
+#include <iomanip>
 #include <iostream>
 #include <fstream>
 #include <stdlib.h>
@@ -47,6 +48,7 @@ extern double *VLeft, *VRight;
 extern double *ALeft, *ARight;
 
 // Global States
+extern double ***newState;
 extern double ***curState;
 extern double ***prevState;
 
@@ -91,6 +93,7 @@ extern double PointLoopTol;
 // Variables related to the convergence solve
 extern int ConvergeLoopMax;
 extern double ConvergeTol;
+extern double relaxFrac;
 
 
 /* --------------- Functions ------------------- */
@@ -167,7 +170,7 @@ inline double cPos(int i, double dx) {return ((double) i)*dx;}
 
 
 // Input a Yarray and a particular X value, interpolates to find Y(X)
-inline double LIntY(double* Yarray, double x, double Delta, int size)
+inline double LIntY(double* Yarray, double x, double Delta, int size, int lastIDX)
 {
     double value = 0;
 
@@ -179,6 +182,7 @@ inline double LIntY(double* Yarray, double x, double Delta, int size)
         if(x < curPos)
         {
             idx = i;
+            lastIDX = idx;
             break;
         }
     }
@@ -189,10 +193,10 @@ inline double LIntY(double* Yarray, double x, double Delta, int size)
         WaterlooHeader("LIntY: Failed to find point");
     }
 
-    double y2 = Yarray[i];
-    double y1 = Yarray[i-1];
-    double x2 = cPos(i,Delta);
-    double x1 = cPos(i-1,Delta);
+    double y2 = Yarray[idx];
+    double y1 = Yarray[idx-1];
+    double x2 = cPos(idx,Delta);
+    double x1 = cPos(idx-1,Delta);
     double m = (y2-y1)/(x2-x1);
 
     // Linearly interpolation

@@ -10,6 +10,9 @@ void Converge();
 
 int main(int argc, char *argv[])
 {
+    // Set precision
+    cout << std::setprecision(12) ;
+
     // Start the clock
     clock_t startTime = clock();
 
@@ -19,19 +22,20 @@ int main(int argc, char *argv[])
     // Check to make sure your arguments are good
     // If so, read them in
     CheckArguments(argc);
-    ReadArguments(argv);
+    ReadArguments(argc,argv);
 
     // Welcome message
     WelcomeMessage();
 
     // Print arguments to screen
-    PrintArguments();
+    PrintArguments(argc);
 
     // Compute various derived quantities
     // Allocates remaining quantities
-    CalcDerived();
+    CalcDerived(argc);
 
     // Allocate State Arrays
+    AllocateState(newState);
     AllocateState(curState);
     AllocateState(prevState);
 
@@ -42,13 +46,18 @@ int main(int argc, char *argv[])
     CopyState(curState,prevState);
 
     // Enter the Solving Routine
-    CodeHeader("Entering Convergence Loop");
+    CodeHeader("Convergence Loop");
     Converge();
+
+    // Calculate the total mass
+    CodeHeader("Calculating Final Masses");
+    CalcMass();
 
     // Print the final state
     PrintState(curState);
 
     // Deallocate State Arrays
+    DeallocateState(newState);
     DeallocateState(curState);
     DeallocateState(prevState);
 

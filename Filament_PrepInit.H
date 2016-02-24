@@ -5,4 +5,5 @@ void InitCylinder();
 void InitPoints();
 void detDVDR();
 void getVbdy();
+void adjustRho();
 void InitQ();

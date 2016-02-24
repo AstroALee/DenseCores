@@ -8,10 +8,15 @@
 # Variables you can change
 # Uniform grid cell size (same in r as in z)
 YESUNIFORM = 0
+# Ratio of filament radius to half height 
 CYLINDERRADRAT = 1.0
-DOONE = 1
-DEBUG = 1
-CPPFLAGS = -DDOONE=$(DOONE) -DDEBUG=$(DEBUG) -DUNIFORM=$(YESUNIFORM) -DRADIALRATIO=$(CYLINDERRADRAT)
+# Max number of loops in Poisson/Ampere solve
+LOOPMAX = 4
+# Are we in debug mode? (1= IC cylinder ; 2= Messy IC, relaxes to cylinder )
+DEBUG = 0
+#
+# Append to flags
+CPPFLAGS = -DLOOPMAX=$(LOOPMAX) -DDEBUG=$(DEBUG) -DUNIFORM=$(YESUNIFORM) -DRADIALRATIO=$(CYLINDERRADRAT)
 
 # Code compiling related stuff
 GCC = g++ 

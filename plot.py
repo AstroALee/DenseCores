@@ -21,8 +21,20 @@ Params = genfromtxt('Output.out',delimiter=",",unpack=True,skip_footer=flen+1)
 r = data[0,:]
 z = data[1,:]
 
+Rpos = data[2,:]
+Zpos = data[3,:]
+
 idx = int(sys.argv[1])
-PlotMe = data[idx,:]
+
+Bfield = 'N'
+NBCont = 2
+if( len(sys.argv) > 2 ):
+    if(sys.argv[2].upper()=='Y'):
+        Bfield = 'Y'
+        if( len(sys.argv) > 3 ): NBCont = int(sys.argv[3])
+
+if(idx==8): PlotMe = multiply(Rpos,data[5,:])
+else: PlotMe = data[idx,:]
 
 plotmin = min(PlotMe)
 plotmax = max(PlotMe)
@@ -36,6 +48,35 @@ RGrid = arange(max(r)+2)*DeltaR ## Grid is the edges, not the center of cells
 ZGrid = arange(max(z)+2)*DeltaZ
 
 PrepPlot = PlotMe.reshape(max(r)+1,max(z)+1).T  # Need the transpose (.T)
+
+
+# IF plotting B fields, get some contours
+if(Bfield=='Y'):
+    PhiData = multiply(Rpos,data[5,:])
+    BContours = []
+    DeltaPhi = (max(PhiData)-min(PhiData))/1.0/NBCont
+    #print DeltaPhi
+    for i in range(NBCont):
+        curPhi = DeltaPhi*(i+1.0)
+        print curPhi
+        curCont = []
+        for j in range(int(Params[1])): #for each Z row
+            curRow = [ PhiData[k] for k in range(int(Params[0]*Params[1])) if (k%(int(Params[1]))==j) ] #PhiData[ Params[1]*i : Params[1]*(i+1) ]
+            print curRow
+            leftidx = 0
+            for k in range(len(curRow)-1):
+                if(( curPhi <= curRow[k+1] and curPhi >= curRow[k] ) or ( curPhi >= curRow[k+1] and curPhi <= curRow[k] )):
+                    leftidx = k
+                    break
+            lPhi = curRow[leftidx]
+            rPhi = curRow[leftidx+1]
+            lRos = DeltaR*(leftidx)
+            rRos = DeltaR*(leftidx+1)
+            m = (rPhi-lPhi)/DeltaR
+            curCont.append( (curPhi-lPhi)/m + lRos )
+        BContours.append(curCont)
+
+
 
 
 #plt.setp(ax,xticklabels=[]) #turns off labels
@@ -59,6 +100,7 @@ if(idx==4): plt.title(r'Gravitational Potential')
 if(idx==5): plt.title(r'A')
 if(idx==6): plt.title(r'Q')
 if(idx==7): plt.title(r'Density')
+if(idx==8): plt.title(r'Phi')
 
 
 #Moves the x-axis down a little
@@ -86,7 +128,13 @@ ax.tick_params(axis='x',pad=9)
 
 
 #plt.pcolor(RGrid,ZGrid,log10(PlotPlot),cmap='Paired',vmin=log10(plot2min),vmax=log10(plotmax))
-plt.pcolor(RGrid,ZGrid,PrepPlot,cmap='Paired',vmin=(plotmin),vmax=(plotmax))
+
+cmapmin = plotmin
+cmapmax = plotmax
+#cmapmin = 0.80
+#cmapmax = 1.2
+
+plt.pcolor(RGrid,ZGrid,PrepPlot,cmap='Paired',vmin=cmapmin,vmax=cmapmax)
 
 plt.colorbar()
 
@@ -96,6 +144,12 @@ area = pi*2.0
 plt.scatter(VCont,ZGrid[:-1]+0.5*DeltaZ,s=1.5*area,c='black')
 plt.plot(VCont,ZGrid[:-1]+0.5*DeltaZ,c='black',linewidth=1,alpha=0.3)
 
+
+# B fields
+if(Bfield=='Y'):
+    for i in range(NBCont):
+        plt.plot(BContours[i],ZGrid[:-1]+0.5*DeltaZ,c='black',linewidth=2,alpha=0.7)
+        #plt.scatter(BContours[i],ZGrid[:-1]+0.5*DeltaZ,s=2*1.5*area,c='blue',marker=(4,1))
 
 #Text
 #plt.text(0.05,0.06,r'${\cal M} = 4.47$',fontsize=26.0)

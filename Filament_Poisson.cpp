@@ -19,18 +19,20 @@ void SolvePoisson()
     createPoissonMatrix(PoMatrix,Source);
 
     // Now call LinAlgebra package to invert the matrix and obtain the new potential values
-    Soln = PoMatrix.colPivHouseholderQr().solve(Source);
+    //Soln = PoMatrix.householderQr().solve(Source);
+    //Soln = PoMatrix.colPivHouseholderQr().solve(Source);
+    Soln = PoMatrix.fullPivHouseholderQr().solve(Source);
 
     // Test to make sure solution is actually a solution (Uses L2 norm)
     double L2error = (PoMatrix*Soln - Source).norm() / Source.norm();
     cout << "Gravity Matrix L2 error = " << L2error << endl;
 
-    // Copy the solution to the curState vector
-    for(i=0;i<M;i++) for(j=0;j<N;j++) curState[Vpot][i][j] = Soln[ Sidx(i,j) ];
+    // Copy the solution to the newState vector
+    for(i=0;i<M;i++) for(j=0;j<N;j++) newState[Vpot][i][j] = Soln[ Sidx(i,j) ];
 
     // Vpot has been updated, re-normalize so V = 0 in the upper-left corner
-    double Vcorner = curState[Vpot][0][N-1];
-    for(i=0;i<M;i++) for(j=0;j<N;j++) curState[Vpot][i][j] = curState[Vpot][i][j] - Vcorner;
+    double Vcorner = newState[Vpot][0][N-1];
+    for(i=0;i<M;i++) for(j=0;j<N;j++) newState[Vpot][i][j] = newState[Vpot][i][j] - Vcorner;
 };
 
 
@@ -41,10 +43,12 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
 
     // First, the source vector :  4*pi*dr^2*rho = 4*pi*dr^2*Q*exp(-V)
     for(s=0;s<M*N;s++)
-        if( cPos(Ridx(s),DeltaR) <= VContour[Zidx(s)])  // In the filament
-            Source[s] = 4.0*PI*pow(DeltaR,2)*curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]);
+    {
+        if( cPos(Ridx(s),DeltaR) <= VContour[Zidx(s)] )  // In the filament
+            Source(s) = 4.0*PI*pow(DeltaR,2)*curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]);
         else                                            // Outside the filament, rho = 0
-            Source[s] = 0.0;
+            Source(s) = 0.0;
+    }
 
     // Second, loop through and fill up the finite difference matrix
     for(s=0;s<M*N;s++)
@@ -89,7 +93,7 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
 
 
         // The left boundary employs a dV/dr = 0 condition, so V(r=-1) = V(r=1)
-        if( Ridx(s) == 0 ) { Mright = Mleft + Mright; Mleft = 0;}  // there is no left
+        if( Ridx(s) == 0 ) { Mright = Mright + Mleft ; Mleft = 0;}  // there is no left
 
 
         // The right boundary employs a dV/dr = f(r,z) condition, so at r=M-1: V(M) = V(M-2) + 2*dr*f(r,z)
