@@ -27,6 +27,8 @@ void SolvePoisson()
     double L2error = (PoMatrix*Soln - Source).norm() / Source.norm();
     cout << "Gravity Matrix L2 error = " << L2error << endl;
 
+    //cout << (PoMatrix*Soln - Source) << endl;
+
     // Copy the solution to the newState vector
     for(i=0;i<M;i++) for(j=0;j<N;j++) newState[Vpot][i][j] = Soln[ Sidx(i,j) ];
 
@@ -99,9 +101,20 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
         // The right boundary employs a dV/dr = f(r,z) condition, so at r=M-1: V(M) = V(M-2) + 2*dr*f(r,z)
         if( Ridx(s) == M-1 )
         {
-            Mleft = Mleft + Mright;
-            Mright = 0;
-            Source(s) = Source(s) - (1.0+wi)*2.0*DeltaR*VRight[Zidx(s)];
+            // Uses Poisson equation and a ghost zone
+            //Mleft = Mleft + Mright;
+            //Mright = 0;
+            //Source(s) = Source(s) - (1.0+wi)*2.0*DeltaR*VRight[Zidx(s)];
+
+            // Employs a 2nd order approximation to the first derivative at M-1
+            Mleft = -4.0;
+            Mright = 0; // doesn't exist
+            Mup = 0;
+            Mdown = 0;
+            Mcenter = 1;
+            PoMatrix(s,s-2) = 1; // Need two neighbor points to the left
+            Source(s) = 6.0*DeltaR*VRight[Zidx(s)];
+
         }
 
         // Now we fill the entries of the matrix with the values

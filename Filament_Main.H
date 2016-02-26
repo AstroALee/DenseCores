@@ -45,9 +45,6 @@ double Pc2Cm = 3.086e18;
 double Sol2G = 1.989e33;
 double Sol2Code;
 
-/* Output File Name */
-string OutFileName = "Output.out";
-
 /* Variables related to the cylinder solve */
 int LoopMAX = 100;
 double CylTol = 1e-8;
@@ -61,6 +58,9 @@ double PointLoopTol = 1e-3;
 int ConvergeLoopMax = 1; // Set by LOOPMAX
 double ConvergeTol = 1e-4;
 double relaxFrac = 0.1;
+
+// Output File Name Header
+string OutFileName = "Output";
 
 
 
@@ -235,33 +235,7 @@ void DeallocateState(double ***&State)
 };
 
 
-// Prints out the data to a file
-void PrintState(double ***curState)
-{
-    int i,j,k;
 
-    ofstream myfile;
-    myfile.open(OutFileName.c_str());
-
-    // First print inputs as the first line
-    myfile << M << "," << N << "," << zL << "," << rRatio << "," << mExcess << "," << betaInf << "," << nCyl << "," << Vbdy << endl;
-
-    // Print VContour (converting to parsecs) as the second line
-    myfile << VContour[0]/Pc2Code;
-    for(j=1;j<N;j++) myfile << "," << VContour[j]/Pc2Code;
-    myfile << endl;
-
-    for(j=0; j< M; j++) for(k=0;k<N;k++)
-    {
-        double Rpc = cPos(j,DeltaR)/Pc2Code;
-        double Zpc = cPos(k,DeltaZ)/Pc2Code;
-
-        myfile << j << "," << k << "," << Rpc << "," << Zpc;
-        for(i = 0; i< NStates; i++) myfile << "," << curState[i][j][k];
-        myfile << endl;
-    }
-    myfile.close();
-};
 
 void CrudeIntegral(double& CylMass, double& TotMass)
 {

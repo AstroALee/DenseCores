@@ -12,13 +12,19 @@ void Converge()
     int i;
     for(i=0;i<ConvergeLoopMax;i++)
     {
-        cout << "Beginning iteration " << i << endl;
+        string NumStr = static_cast<ostringstream*>( &(ostringstream() << i) )->str();
+        PrintState(curState,"_",NumStr);
+
+        cout << endl << "Beginning iteration " << i << endl;
 
         // Solve Poisson
         SolvePoisson();
 
         // Solve Ampere
         SolveAmpere();
+
+        // About to use new solution to relax, make data in curState the prevState
+        CopyState(curState,prevState);
 
         // Relax V and A, use this to recalc boundary, Q, and Rho
         RelaxSoln();
@@ -35,12 +41,14 @@ void Converge()
         // Converged?
         ConvergeTest(i,done);
         if(done) { cout << "Converged! Breaking out." << endl; break; }
-        
+
+
+
     }
 
 };
 
-// Relax
+// Relax your newState
 void RelaxSoln()
 {
     int i,j;
@@ -167,39 +175,34 @@ void UpdateQ()
         double localPhi = cPos(i,DeltaR)*curState[Apot][i][j];
         int idx;
 
-        if(cPos(i,DeltaR)>VContour[j])
+        // Find the two indices localPhi lies between (if not monotonic, could be weird)
+        for(idx=1;idx<M;idx++)
         {
-            curState[Q][i][j] = Qbdy;
+            double Pleft = cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
+            double Pright= cPos(idx,DeltaR)*curState[Apot][idx][j];
+
+            if( (Pleft <= localPhi && localPhi <= Pright) || (Pleft >= localPhi && localPhi >= Pright) )
+            {
+                break;
+            }
         }
-        else
+
+        if(idx==M-1)
         {
-            // Find the two indices localPhi lies between
-            for(idx=1;idx<M;idx++)
-            {
-                double Pleft = cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
-                double Pright= cPos(idx,DeltaR)*curState[Apot][idx][j];
-
-                if( (Pleft <= localPhi && localPhi <= Pright) || (Pleft >= localPhi && localPhi >= Pright) )
-                {
-                    break;
-                }
-            }
-
-            if(idx==M-1)
-            {
-                // Possibly didn't find, but we know Phi analytically?
-            }
-
-            // We now know which two Phi values the local Phi lies between. Intropolate a Q value
-
-            double y1 = QMap[idx-1];
-            double y2 = QMap[idx];
-            double x1 = cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
-            double x2 = cPos(idx,DeltaR)*curState[Apot][idx][j];
-            double m = (y2-y1)/(x2-x1);
-
-            curState[Q][i][j] = y1 + m*(localPhi-x1);
+            // Possibly didn't find, but we know Phi analytically
+            // Assumes we are beyond the boundary
         }
+
+        // We now know which two Phi values the local Phi lies between. Intropolate a Q value
+
+        double y1 = QMap[idx-1];
+        double y2 = QMap[idx];
+        double x1 = cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
+        double x2 = cPos(idx,DeltaR)*curState[Apot][idx][j];
+        double m = (y2-y1)/(x2-x1);
+
+        curState[Q][i][j] = y1 + m*(localPhi-x1);
+
     }
 
 };
@@ -242,9 +245,12 @@ void ConvergeTest(int loopnum, int& done)
 
         }
 
-        if(curState[Apot][i][j] != 0) {
-                locerrA = fabs( curState[Apot][i][j] - prevState[Apot][i][j] )
-                        / fabs(curState[Apot][i][j]); }
+        if(curState[Apot][i][j] != 0)
+        {
+            double curA = curState[Apot][i][j];
+            double preA = prevState[Apot][i][j];
+            locerrA = fabs(curA-preA)/fabs(curA);
+        }
 
         //cout << i << "," << j << " : " << locerrV << " " << curDV-preDV << " " << curState[Vpot][i][j] - prevState[Vpot][i][j] << " " << curState[Apot][i][j] - prevState[Apot][i][j] << endl;
 

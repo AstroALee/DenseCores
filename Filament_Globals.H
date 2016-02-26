@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <stdlib.h>
+#include <sstream>
 #include <string.h>
 #include <math.h>
 #include <time.h>
@@ -69,8 +70,6 @@ extern double Sol2Code;
     #define RADIALRATIO 1.0
 #endif
 
-
-
 // Enuemrate Declaration
 #define NStates 4
 enum states { Vpot, Apot, Q, Rho };
@@ -96,6 +95,8 @@ extern double ConvergeTol;
 extern double relaxFrac;
 
 
+
+
 /* --------------- Functions ------------------- */
 
 inline void LongLine()
@@ -119,7 +120,7 @@ inline void WaterlooHeader(string f)
     cout << "In function: " << f << endl;
 };
 
-// Copying state
+// Copying state 1 to state 2
 inline void CopyState(double ***&State1, double ***&State2)
 {
     int i,j,k;
@@ -240,4 +241,37 @@ inline double LIntX(double* Yarray, double y, double Delta, int size)
     value = x1 + (y-y1)/m;
 
     return value;
+};
+
+// Prints out the data to a file
+inline void PrintState(double ***curState,string divide, string num)
+{
+    int i,j,k;
+
+    string OutFile;
+    OutFile = OutFileName + divide + num;
+
+    //OutFile = OutFileName.c_str() + num.c_str();
+
+    ofstream myfile;
+    myfile.open(OutFile.c_str());
+
+    // First print inputs as the first line
+    myfile << M << "," << N << "," << zL << "," << rRatio << "," << mExcess << "," << betaInf << "," << nCyl << "," << Vbdy << endl;
+
+    // Print VContour (converting to parsecs) as the second line
+    myfile << VContour[0]/Pc2Code;
+    for(j=1;j<N;j++) myfile << "," << VContour[j]/Pc2Code;
+    myfile << endl;
+
+    for(j=0; j< M; j++) for(k=0;k<N;k++)
+    {
+        double Rpc = cPos(j,DeltaR)/Pc2Code;
+        double Zpc = cPos(k,DeltaZ)/Pc2Code;
+
+        myfile << j << "," << k << "," << Rpc << "," << Zpc;
+        for(i = 0; i< NStates; i++) myfile << "," << curState[i][j][k];
+        myfile << endl;
+    }
+    myfile.close();
 };

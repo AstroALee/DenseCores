@@ -203,14 +203,14 @@ void getVbdy()
     // Vpot value we're interested in
     for(i=0;i<M;i++) Vrow[i] = curState[Vpot][i][N-1];
 
-    for(i=0;i<M;i++) cout <<  Vrow[i] << " ";
-    cout << endl;
+    //for(i=0;i<M;i++) cout <<  Vrow[i] << " ";
+    //cout << endl;
 
     // Upate the global variable
     int lastIDX;
     if(rRatio>1) Vbdy = LIntY(Vrow,rEdge,DeltaR,M,lastIDX);
     else Vbdy = curState[Vpot][M-1][N-1];
-    
+
     cout << "Vbdy is " << Vbdy << endl;
 
     VContour[N-1] = rEdge; // Should have already done this

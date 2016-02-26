@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     CalcMass();
 
     // Print the final state
-    PrintState(curState);
+    PrintState(curState,".","out");
 
     // Deallocate State Arrays
     DeallocateState(newState);

@@ -24,6 +24,11 @@ void SolveAmpere()
 
     // Test to make sure solution is actually a solution (Uses L2 norm)
     double L2error = (AmMatrix*Soln - Source).norm() / Source.norm();
+
+    //cout << (AmMatrix) << endl;
+    //cout << Source << endl;
+    //cout << (AmMatrix*Soln - Source) << endl;
+
     cout << "Ampere Matrix L2 error = " << L2error << endl;
 
     // Copy the solution to the newState vector
