@@ -21,7 +21,7 @@ void SolvePoisson()
     // Now call LinAlgebra package to invert the matrix and obtain the new potential values
     //Soln = PoMatrix.householderQr().solve(Source);
     //Soln = PoMatrix.colPivHouseholderQr().solve(Source);
-    Soln = PoMatrix.fullPivHouseholderQr().solve(Source);
+    Soln = PoMatrix.colPivHouseholderQr().solve(Source);
 
     // Test to make sure solution is actually a solution (Uses L2 norm)
     double L2error = (PoMatrix*Soln - Source).norm() / Source.norm();

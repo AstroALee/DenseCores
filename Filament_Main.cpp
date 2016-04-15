@@ -10,8 +10,8 @@ void Converge();
 
 int main(int argc, char *argv[])
 {
-    // Set precision
-    cout << std::setprecision(12) ;
+    // Set precision (give me all the numbers)
+    cout << std::setprecision(16) ;
 
     // Start the clock
     clock_t startTime = clock();
@@ -42,8 +42,8 @@ int main(int argc, char *argv[])
     // Prepare initial conditions
     PrepareInitialState();
 
-    // Copy initial state
-    CopyState(curState,prevState);
+    // Copy initial state (I think this is redundant with what's in SolveAll.cpp)
+    //CopyState(curState,prevState);
 
     // Enter the Solving Routine
     CodeHeader("Convergence Loop");

@@ -9,6 +9,7 @@ double rRatio;
 double mExcess;
 double betaInf;
 double nCyl;
+double lambda;
 
 /* Declaration of global derived quantities */
 double zL,rL;
@@ -22,9 +23,15 @@ double Vbdy = 0;
 /* Rho at the top boundary */
 double *RhoTop;
 
+/* Total mass when mExcess = 0 */
+double totMass = -1;
+
+/* Number of arguments - 1 that are expected */
+int NumArg = 9;
+
 /* Ambient background */
-double Pbackground = 4.14194556e-13; //1.38064852e-12; // cgs Pressure (1000 cm-3 , 10 K)
-double Cbackground = 18545.4363;     // cgs Sound speed (10 K, 2.4 mmw)
+double Pbackground = 0; // must be determined by inputs
+double Cbackground = 0.2*100000; //18821.9544;     // cgs Sound speed (10 K, 2.33 mmw)
 
 /* Boundary Condition Arrays for values or derivatives */
 double *VLeft, *VRight;
@@ -39,10 +46,10 @@ double ***prevState;
 
 /* Unit coversion from parsecs to code length units (G=c_s=rho(edge)=1) */
 double Pc2Code;
-double Pc2Cm = 3.086e18;
+double Pc2Cm = 3.0856776e18;
 
 /* Unit conversion from solar masses to code units */
-double Sol2G = 1.989e33;
+double Sol2G = 1.9885e33;
 double Sol2Code;
 
 /* Variables related to the cylinder solve */
@@ -57,7 +64,7 @@ double PointLoopTol = 1e-3;
 /* Variables related to the convergence solve */
 int ConvergeLoopMax = 1; // Set by LOOPMAX
 double ConvergeTol = 1e-4;
-double relaxFrac = 0.1;
+double relaxFrac = 0.50;
 
 // Output File Name Header
 string OutFileName = "Output";
@@ -84,11 +91,11 @@ void Tallies(clock_t startTime)
 void CheckArguments(int a)
 {
     // The number should be correct
-    if(a-1 < 7 || a-1 > 8)
+    if(a-1 < NumArg-1 || a-1 > NumArg)
     {
         WaterlooHeader("CheckArguments");
-        cout << "You didn't provide the right number of arguments. You need seven or eight." << endl;
-        cout << "(M,N,z-length (pc), Ratio r-length to z-length,Non-Dim Mass excess, beta_inf, n, (loopmax; opt))" << endl;
+        cout << "You didn't provide the right number of arguments. You need eight or nine." << endl;
+        cout << "(M,N,z-length (pc), Ratio r-length to z-length, Mass excess frac, beta_inf, n, non-dim mass/length, (loopmax; opt))" << endl;
         cout << "You provided " << a-1 << " argument" << Plural(a-1,"s") << "." << endl;
         exit(1);
     }
@@ -105,7 +112,8 @@ void ReadArguments(int argc, char *a[])
     mExcess = atof(a[5]);
     betaInf = atof(a[6]);
     nCyl = atof(a[7]);
-    if(argc-1==8) ConvergeLoopMax = atoi(a[8]);
+    lambda = atof(a[8]);
+    if(argc-1==NumArg) ConvergeLoopMax = atoi(a[9]);
 
 
 
@@ -118,7 +126,7 @@ void ReadArguments(int argc, char *a[])
         exit(1);
     }
 
-    if(zL < 0 || rRatio < 1 || mExcess < 0)
+    if(zL < 0 || rRatio < 1 || mExcess < 0 || mExcess > 1)
     {
         WaterlooHeader("ReadArguments");
         cout << "Some values of zL, rRatio, or mExcess are weird. You provided zL, rRatio, mExcess = " << zL << ", " << rRatio << ", " << mExcess << endl;
@@ -126,10 +134,10 @@ void ReadArguments(int argc, char *a[])
         exit(1);
     }
 
-    if(betaInf < 0 || nCyl < 0.5)
+    if(betaInf < 0 || nCyl < 0.5 || lambda < 0)
     {
         WaterlooHeader("ReadArguments");
-        cout << "Your betaInf or nCyl values may be unphysical. You provided betaInf, nCyl = " << betaInf << ", " << nCyl << endl;
+        cout << "Your betaInf or nCyl or mass/length values may be unphysical. You provided betaInf, nCyl, lambda = " << betaInf << ", " << nCyl << ", " << lambda << endl;
         exit(1);
     }
 
@@ -153,40 +161,28 @@ void PrintArguments(int argc)
     cout << "N = " << N << endl;
     cout << "zL = " << zL << " parsecs" << endl;
     cout << "rRatio = " << rRatio << endl;
-    cout << "mExcess = " << mExcess << endl;
+    cout << "mExcess frac = " << mExcess << endl;
     cout << "betaInf = " << betaInf << endl;
-    cout << "nCyl = " << nCyl << endl << endl;
+    cout << "nCyl = " << nCyl << endl;
+    cout << "lambda = " << lambda << endl << endl;
     cout << "Here are your compiler options:" << endl;
     cout << "DEBUG = " << DEBUG << endl;
     cout << "LOOPMAX = " << LOOPMAX << endl;
     cout << "UNIFORM = " << UNIFORM << endl;
     cout << "RADIALRATIO = " << RADIALRATIO << endl;
-    if(argc-1==8) cout << "Overwriting LOOPMAX to " << ConvergeLoopMax << endl;
+    cout << "CYLINDERRADRAT = " << CYLINDERRADRAT << endl;
+    if(argc-1==NumArg) cout << "Overwriting LOOPMAX to " << ConvergeLoopMax << endl;
 };
 
 void CalcDerived(int argc)
 {
-    // Unit conversion, multiply by this to convert parsecs to code units
-    double cgsCodeLength = Cbackground*Cbackground/sqrt(Gcst*Pbackground);  // cm/code length
-    double pcCodeLength = cgsCodeLength/Pc2Cm; // pc/code length
-    Pc2Code = 1/pcCodeLength; // code/pc length
-
-    // Unit conversion, multiply by this to convert solar masses to code units
-    double cgsCodeMass = pow(Cbackground,4)/sqrt(Pbackground*pow(Gcst,3));
-    double solCodeMass = cgsCodeMass/Sol2G;
-    Sol2Code = 1/solCodeMass;
-
-    cout << "Unit conversions:" << endl;
-    cout << "Parsec to Code = " << Pc2Code << endl;
-    cout << "Solar mass to Code = " << Sol2Code << endl;
-
     // Radial length
     rL = rRatio * zL;
     cout << "rL = " << rL << " parsecs" << endl;
 
-    // Now converting to code units;
-    zL = zL*Pc2Code;
-    rL = rL*Pc2Code;
+    // Now converting to code units; (now units are done elsewhere)
+    //zL = zL*Pc2Code;
+    //rL = rL*Pc2Code;
 
     // Cell sizes (in code units)
     if(UNIFORM) M = rRatio * N;   // Adjusts the value of M so DeltaR = DeltaZ
@@ -207,8 +203,8 @@ void CalcDerived(int argc)
     RhoTop = new double[M];
 
     // Are we only doing one converge loop? (currently value potentially set by command line arg (CLA))
-    if(DEBUG==1 && argc-1!=8) ConvergeLoopMax=1; // w/o CLA, override to only solve once
-    if(LOOPMAX>=0 && argc-1!=8) ConvergeLoopMax = LOOPMAX; // w/o CLA, use GNUMake value for LoopMax
+    if(DEBUG==1 && argc-1!=NumArg) ConvergeLoopMax=1; // w/o CLA, override to only solve once
+    if(LOOPMAX>=0 && argc-1!=NumArg) ConvergeLoopMax = LOOPMAX; // w/o CLA, use GNUMake value for LoopMax
     if(ConvergeLoopMax<0 || DEBUG==-1) ConvergeLoopMax = 0; // Sanity or all-power DEBUG override
 
 };
@@ -383,22 +379,20 @@ void CalcMass()
     SimpIntegral(CylMassS,TotMassS);
 
     cout << "Mass calculations (non-dim)" << endl;
-    cout << "Cylinder masses (C,T,S):" << endl;
-    cout << CylMassC << ", " << CylMassT << ", " << CylMassS << endl;
-    cout << "Total masses (C,T,S):" << endl;
-    cout << TotMassC << ", " << TotMassT << ", " << TotMassS << endl;
-    cout << "Excess masses (C,T,S):" << endl;
-    cout << (TotMassC-CylMassC) << ", " << (TotMassT-CylMassT) << ", " << (TotMassS-CylMassS) << endl;
+    cout << "Baseline cylinder mass = " << 2.0*zL*lambda << endl;
+    cout << "Background cylinder mass (trap) = " << CylMassT << endl;
+    cout << "Total mass (trap) = " << TotMassT << endl;
+    cout << "Ratio of excess mass to baseline mass = " << (TotMassT-CylMassT)/(2.0*zL*lambda) << endl;
     cout << endl;
 
-    cout << "Mass calculations (dim; solar masses)" << endl;
-    cout << "Cylinder masses (C,T,S):" << endl;
-    cout << CylMassC/Sol2Code << ", " << CylMassT/Sol2Code << ", " << CylMassS/Sol2Code << endl;
-    cout << "Total masses (C,T,S):" << endl;
-    cout << TotMassC/Sol2Code << ", " << TotMassT/Sol2Code << ", " << TotMassS/Sol2Code << endl;
-    cout << "Excess masses (C,T,S):" << endl;
-    cout << (TotMassC-CylMassC)/Sol2Code << ", " << (TotMassT-CylMassT)/Sol2Code << ", " << (TotMassS-CylMassS)/Sol2Code << endl;
+    cout << "Mass calculation (dim, solar masses)" << endl;
+    cout << "Baseline cylinder mass = " << 2.0*zL*lambda/Sol2Code << endl;
+    cout << "Background cylinder mass (trap) = " << CylMassT/Sol2Code << endl;
+    cout << "Total mass (trap) = " << TotMassT/Sol2Code << endl;
+    cout << "Ratio of excess mass to baseline mass = " << (TotMassT-CylMassT)/(2.0*zL*lambda) << endl;
+    cout << endl;
 
+    //cout << endl << "Central rho = " << RhoTop[0] << endl;
 
 
 };

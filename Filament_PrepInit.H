@@ -7,3 +7,5 @@ void detDVDR();
 void getVbdy();
 void adjustRho();
 void InitQ();
+void UnitConvert();
+void BaselineCylinder();

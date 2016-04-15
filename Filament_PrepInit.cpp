@@ -1,15 +1,34 @@
 #include "Filament_PrepInit.H"
 
 // Magnetized cylinder solution generator
-void MagnetizedCylinder(double Redge);
+void MagnetizedCylinder(double& Redge, double desiredLambda, int i);
 
 
 
 void PrepareInitialState()
 {
-    // Determine Vpot, Apot, RhoTop from cylinder solution
-    CodeHeader("Magnetized Cylinder integrations");
+    // Calculate the baseline cylinder (what would be if mExcess = 0, and set units)
+    CodeHeader("Baseline Magnetized Cylinder integrations");
+    BaselineCylinder();
+
+    // Given now that we know quantities of the background cylinder, we can evaluate the 'units'
+    UnitConvert();
+
+    // As of now, mExcess is actually the fraction of the baseline cylinder. Convert to non-dim mass
+    mExcess = mExcess * (2.0*zL*lambda);
+
+    // What is the total non-dim mass?
+    cout << endl << "The total mass of the baseline cylinder is = " << 2.0*zL*lambda << endl;
+    cout << "(" <<  2.0*zL*lambda/Sol2Code << " solar masses)" << endl;
+
+    // Determine Vpot, Apot, RhoTop for reduced cylinder
+    CodeHeader("Background Magnetized Cylinder integrations");
     InitCylinder();
+
+    // What is the reduced non-dim mass?
+    double desiredLambda = lambda - mExcess/(2.0*zL);
+    cout << endl << "The total mass of the background cylinder is = " << 2.0*zL*desiredLambda << endl;
+    cout << "(" <<  2.0*zL*desiredLambda/Sol2Code << " solar masses)" << endl;
 
     // Adds on Vpot from a chain of point masses
     CodeHeader("Determining Point Mass Potential");
@@ -30,25 +49,37 @@ void PrepareInitialState()
     CodeHeader("Initializing Q");
     InitQ();
 
+    // Initial dQdPhi
+    CodeHeader("Getting the first dQdPhi");
+    CalcdQdP();
+
 };
 
 
+void BaselineCylinder()
+{
+    // Calculates the mExcess = 0 cylinder
+    double Redge=0;
 
+    MagnetizedCylinder(Redge,lambda,0);
 
+    // This non-dim radius will be used to create our units.
+    for(int i=0;i<N;i++) VContour[i] = Redge;
+
+};
 
 
 void InitCylinder()
 {
     // Initialize Potentials from Cylinder
-    // Given the value of rL and zL, we can find the cylinder solution that goes to unity at r=RADIALRATIO*zL,
-    // while calcuating the full potential solution out to rL (assuming P=1 outside r=zL)
+    // Given the value of lambda and mExcess, we can determine what the lambda value the reduced cylinder
+    // must have.
 
-    // Radial edge of the cylinder
-    double Redge = RADIALRATIO*zL;
+    double desiredLambda = lambda - mExcess/(2.0*zL);
+    if(desiredLambda < 0){ cout << endl << "ERROR! mExcess > totMass (" << mExcess << "," << lambda*2.0*zL << ")" << endl; exit(1);}
 
-    // We want the solution where rho = 1 at Redge
-    MagnetizedCylinder(Redge);
-
+    double Redge=0; // don't actually need
+    MagnetizedCylinder(Redge,desiredLambda,1); // 1 = populate curState
 
 };
 
@@ -68,11 +99,12 @@ void InitPoints()
     for(i=0;i<M;i++) for(j=0;j<N;j++) PointVold[i][j] = 0.0;
 
     // Loops, adding point masses to the chain. Breaks from additional points do not change potential
-    int PPidx = 0;
-    double zP=0;
+    int PPidx = 0; //1;// skips one particular because GM/r blows up for the idx=0 particle in the corner.
+    double zP=0;//2.0*zL;
 
     // Mass in code units
-    double Mcode = mExcess * Sol2Code;
+    double Mcode = mExcess;
+    cout << "MCode = " << Mcode << endl;
 
 
 
@@ -87,18 +119,16 @@ void InitPoints()
             double X1 = sqrt( pow(cPos(i,DeltaR),2) + pow(cPos(j,DeltaZ)-zP,2) );
             double X2 = sqrt( pow(cPos(i,DeltaR),2) + pow(cPos(j,DeltaZ)+zP,2) );
 
-            if(i==0 && j==0 && zP==0)
+            if(zP==0)
             {
-                // (GM/X blows up)
-                double up = Mcode/sqrt( pow(cPos(1,DeltaR),2) + pow(cPos(0,DeltaZ),2));
-                double right = Mcode/sqrt( pow(cPos(0,DeltaR),2) + pow(cPos(1,DeltaZ),2));
-                PointV[0][0] = PointV[0][0] - 1.1*max(up,right);
+                // (GM/X blows up, use a softening parameter)
+                double Xsoft = zL/2.0; //1.0*sqrt(pow(DeltaR,2)+pow(DeltaZ,2));
+                X1 = X1 + Xsoft;
             }
-            else
-            {
-                PointV[i][j] = PointV[i][j] + -Mcode/X1;
-                if(zP > 0) PointV[i][j] = PointV[i][j] + -Mcode/X2;
-            }
+
+            PointV[i][j] = PointV[i][j] + -Mcode/X1;
+            if(zP > 0) PointV[i][j] = PointV[i][j] + -Mcode/X2;
+
 
         }
 
@@ -141,6 +171,7 @@ void InitPoints()
     // Normalize so that the upper-left corner has Vpot=0
     double Vnorm = PointV[0][N-1];
     for(i=0;i<M;i++) for(j=0;j<N;j++) PointV[i][j] = PointV[i][j] - Vnorm;
+
     // Add solution to the potential
     for(i=0;i<M;i++) for(j=0;j<N;j++) curState[Vpot][i][j] = curState[Vpot][i][j] + PointV[i][j];
 
@@ -155,7 +186,7 @@ void detDVDR()
     // to be consistent
     int i,j;
     int LoopIdx=0;
-    double Mcode = mExcess * Sol2Code;
+    double Mcode = mExcess;
     double zP = 0;
 
     // Just in case
@@ -179,9 +210,9 @@ void detDVDR()
 
 
     // The potential from the cylinder then adds the same value to each row
-    // V has the form V = C1*ln(r) + C2
+    // V has the form V = C1*ln(r/rEdge) + C2
     // so dV/dr = C1/r
-    // C1 = Vdot*rEdge, C2 = V(rEdge) - C1*ln(rEdge)
+    // C1 = Vdot(rEdge)*rEdge, C2 = V(rEdge)
     // This assumes the right boundary is at the filament boundary or outside the filament bdy
 
     // We're at r = rL (not necessarily rEdge = filament boundary)
@@ -196,26 +227,24 @@ void detDVDR()
 void getVbdy()
 {
     double Vrow[M];
-    double rEdge = RADIALRATIO*zL;
+    double rEdge = VContour[N-1];
 
     int i,j;
 
-    // Vpot value we're interested in
+    // Vpot values we're interested in
     for(i=0;i<M;i++) Vrow[i] = curState[Vpot][i][N-1];
 
     //for(i=0;i<M;i++) cout <<  Vrow[i] << " ";
     //cout << endl;
 
     // Upate the global variable
-    int lastIDX;
+    int lastIDX=0;
     if(rRatio>1) Vbdy = LIntY(Vrow,rEdge,DeltaR,M,lastIDX);
     else Vbdy = curState[Vpot][M-1][N-1];
 
     cout << "Vbdy is " << Vbdy << endl;
 
-    VContour[N-1] = rEdge; // Should have already done this
-
-    // For each row, find where Vcontour (N-1 -> skip the top)
+    // For each row, find where Vcontour is (N-1 -> skip the top)
     for(j=0;j<N-1;j++)
     {
         // Find first instance of two indices where Vval lie between
@@ -246,14 +275,10 @@ void getVbdy()
         double x2 = cPos(i,DeltaR);
         double m = (y2-y1)/(x2-x1);
 
+        // contour location
         VContour[j] = x1 + (Vbdy-y1)/m;
 
     }
-
-    // Technically, if Mexcess > 0, rho does not drop to zero along this boundary. We technically
-    // do not use rho in the finite difference solve, so while this is a little inconsistent, whatev.
-
-
 
 };
 
@@ -283,7 +308,7 @@ void InitQ()
         if( cPos(i,DeltaR) <= VContour[j] )
         {
             curState[Q][i][j] = (curState[Rho][i][j])*exp(curState[Vpot][i][j]);
-            if(DEBUG==2) curState[Q][i][j] = curState[Q][i][j] + 1.0*cPos(i,DeltaR)*cPos(j,DeltaZ)/zL/rL;
+            //if(DEBUG==2) curState[Q][i][j] = curState[Q][i][j] + 1.0*cPos(i,DeltaR)*cPos(j,DeltaZ)/zL/rL;
         }
         else
         {
@@ -293,5 +318,42 @@ void InitQ()
 
     //for(i=0;i<M;i++) for(j=0;j<N;j++) cout << i << "," << j << " : " << curState[Q][i][j] << endl;
 
+
+};
+
+
+
+void UnitConvert()
+{
+    // VContour[i] is the non-dim radius of the filament
+    double Rcyl = VContour[0];
+
+    // Dimensional radius of filament (cgs)
+    double Rdim = CYLINDERRADRAT*zL*Pc2Cm;
+
+    // The pressure unit is Rcyl^2 * (c^4/R^2/G)
+    Pbackground = pow(Rcyl,2)*( pow(Cbackground,4)/Gcst/pow(Rdim,2) );
+
+    // Unit conversion, multiply by this to convert parsecs to code units
+    double cgsCodeLength = Cbackground*Cbackground/sqrt(Gcst*Pbackground);  // cm/code length
+    double pcCodeLength = cgsCodeLength/Pc2Cm; // pc/code length
+    Pc2Code = 1/pcCodeLength; // code/pc length
+
+    // Unit conversion, multiply by this to convert solar masses to code units
+    double cgsCodeMass = pow(Cbackground,4)/sqrt(Pbackground*pow(Gcst,3)); // g/code
+    double solCodeMass = cgsCodeMass/Sol2G; // sol/code
+    Sol2Code = 1/solCodeMass;
+
+    cout << "Unit conversions:" << endl;
+    cout << "Parsec to Code = " << Pc2Code << endl;
+    cout << "Solar mass to Code = " << Sol2Code << endl;
+
+    // Non-dimensionalize the values
+    zL = zL*Pc2Code;
+    rL = rL*Pc2Code;
+
+    // Define these values
+    DeltaR = rL / (double(M)-1);
+    DeltaZ = zL / (double(N)-1);
 
 };

@@ -5,6 +5,8 @@ from numpy import *
 import scipy as spi
 import sys
 
+mpl.rcParams['contour.negative_linestyle'] = 'solid'
+
 # Colors
 dred = [0.6,0,0]
 
@@ -51,6 +53,10 @@ DeltaZ = data[3,-1]/(max(z)+1)
 
 RGrid = arange(max(r)+2)*DeltaR ## Grid is the edges, not the center of cells
 ZGrid = arange(max(z)+2)*DeltaZ
+
+RMesh, ZMesh = meshgrid(arange(max(r)+1)*DeltaR,arange(max(z)+1)*DeltaZ)
+PlotMesh = PlotMe.reshape(max(r)+1,max(z)+1).T
+
 
 PrepPlot = PlotMe.reshape(max(r)+1,max(z)+1).T  # Need the transpose (.T)
 
@@ -134,24 +140,31 @@ ax.tick_params(axis='x',pad=9)
 
 #plt.pcolor(RGrid,ZGrid,log10(PlotPlot),cmap='Paired',vmin=log10(plot2min),vmax=log10(plotmax))
 
+NCont = 10
 cmapmin = plotmin
 cmapmax = plotmax
-#cmapmin = 0.80
-#cmapmax = 1.2
 
-cmap = 'Paired'
-cmap = 'RdBu_r'
-#cmap = 'Spectral'
-#cmap = 'Blues_r'
-plt.pcolor(RGrid/Pc2Code,ZGrid/Pc2Code,PrepPlot,cmap=cmap,vmin=cmapmin,vmax=cmapmax)
+# Log spaced
+if(idx==7): CLevels = 1 + (cmapmax-1)*logspace(-1.5,0,NCont)
+else: CLevels = cmapmin + (cmapmax-cmapmin)*logspace(-1.5,0,NCont)
+print CLevels
+# Linearly spaced
 
-plt.colorbar()
+
+#plt.pcolor(RGrid,ZGrid,PrepPlot,cmap='Paired',vmin=cmapmin,vmax=cmapmax)
+#plt.colorbar()
+CS = plt.contour(RMesh/Pc2Code,ZMesh/Pc2Code,PlotMesh,levels=CLevels,colors='k')
+#CS = plt.contour(RMesh,ZMesh,PlotMesh,colors='k')
+plt.clabel(CS, inline=1, fontsize=10)
+
+
 
 
 # Filament Boundary
 area = pi*2.0
 plt.scatter(VCont/Pc2Code,(ZGrid[:-1]+0.5*DeltaZ)/Pc2Code,s=1.5*area,c='black')
 plt.plot(VCont/Pc2Code,(ZGrid[:-1]+0.5*DeltaZ)/Pc2Code,c='black',linewidth=1,alpha=0.3)
+
 
 
 # B fields
@@ -168,7 +181,7 @@ if(Bfield=='Y'):
 
 # Creates Plot
 #plt.show()
-plt.savefig('Plot.pdf')
+plt.savefig('Contour.pdf')
 #plt.savefig('figure3.eps')
 
 #Restores defaults

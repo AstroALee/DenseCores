@@ -4,6 +4,9 @@
 
 using namespace Eigen;
 
+// What boundary condition are we using at the right edge
+int BdyRight = 2; // 0 = value of A, 1 = value of dA/dr, 2 = value of Cross(A) = (1/r)*d(rA)/dr
+
 
 void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source);
 
@@ -42,6 +45,8 @@ void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source)
 {
     int s;
     double Binf = sqrt(8.0*PI/betaInf);
+    double alpha = Binf; // alpha^2 = 8*pi/beta_inf = 8*pi*(B^2/8*pi)/(rho_*c^2)_inft -> B^2
+    double Ccst = PI*RhoTop[0]/2.0/(1.0+1.0/betaInf);
 
     // Source vector
     for(s=0;s<M*N;s++)
@@ -53,83 +58,80 @@ void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source)
         }
         else if( Ridx(s) == M-1 )
         {
-            // We will manually set A = B_inf * r / 2
-            Source(s) = Binf*cPos(M-1,DeltaR)/2.0;
+            if(BdyRight==0)
+            {
+                // We will manually set A = B_inf * r / 2
+                Source(s) = Binf*cPos(M-1,DeltaR)/2.0;
+
+                // Manually set to cylinder + empty space (the cylinder solution assumes nCyl = 0.5)
+                double Redge = VContour[N-1];
+                Source(s) = (0.5*alpha*sqrt(RhoTop[0])/Ccst)*log(Ccst*Redge*Redge+1.0)/rL + 0.5*Binf*(rL-Redge*Redge/rL);
+            }
+            else if(BdyRight==1)
+            {
+
+            }
+            else
+            {
+                // We will impose a boundary condition (1/r)*d(rA)/dr = B_infty at this boundary
+                Source(s) = 2.0*DeltaR*Binf;
+            }
         }
         else
         {
             // Need dQ/dPhi = Q(i+1)-Q(i-1)+Q(j+1)-Q(j-1) / Phi(i+1)-Phi(i-1)+Phi(j+1)-Phi(j-1)
-            double Qright, Qleft, Qup, Qdown;
-            double Phiright, Phileft, Phiup, Phidown;
+            double dQdPhi = curState[dQdP][Ridx(s)][Zidx(s)];
 
-            // Left will always be available.
-            Qleft = curState[Q][Ridx(s)-1][Zidx(s)];
-            if( Ridx(s) == M-1 ) Qright = Qleft;    // at or outside filament, Q is constant
-            else Qright = curState[Q][Ridx(s)+1][Zidx(s)];
-
-            // Since rho and V obey d/dz=0 boundary conditions, so does Q
-            if( Zidx(s) == 0 ) { Qup = curState[Q][Ridx(s)][Zidx(s)+1]; Qdown = Qup;}
-            else if(Zidx(s)==N-1) {Qdown = curState[Q][Ridx(s)][Zidx(s)-1]; Qup = Qdown;}
-            else
-            {
-                Qup = curState[Q][Ridx(s)][Zidx(s)+1];
-                Qdown = curState[Q][Ridx(s)][Zidx(s)-1];
-            }
-
-
-            // Left will always be available, right is not periodic, but uses analytic for straight uniform field
-            // Up and down periodic
-            Phileft = cPos(Ridx(s)-1,DeltaR) * curState[Apot][Ridx(s)-1][Zidx(s)];
-
-            if( Zidx(s) == 0 )
-            {
-                Phiup = cPos(Ridx(s),DeltaR) * curState[Apot][Ridx(s)][Zidx(s)+1];
-                Phidown = Phiup;
-            }
-            else if( Zidx(s) == N-1 )
-            {
-                Phidown = cPos(Ridx(s),DeltaR) * curState[Apot][Ridx(s)][Zidx(s)-1];
-                Phiup = Phidown;
-            }
-            else
-            {
-                Phiup = cPos(Ridx(s),DeltaR) * curState[Apot][Ridx(s)][Zidx(s)+1];
-                Phidown = cPos(Ridx(s),DeltaR) * curState[Apot][Ridx(s)][Zidx(s)-1];
-            }
-
-            if( Ridx(s) == M-1 )
-            {
-                // Analytic A = 0.5*Binf*r, beta = rho*cs2 / B^2/8pi -> beta = 8pi/B^2
-                Phiright = 0.5*pow(cPos(Ridx(s),DeltaR),2)*Binf;
-            }
-            else
-            {
-                Phiright = cPos(Ridx(s)+1,DeltaR) * curState[Apot][Ridx(s)+1][Zidx(s)];
-            }
-
-            // dQ/dPhi
-            double dQdPhi = (Qright-Qleft+Qup-Qdown)/(Phiright-Phileft+Phiup-Phidown);
-            //cout << dQdPhi << endl;
-
-            if( cPos(Ridx(s),DeltaR) <= VContour[Zidx(s)]) Source(s) = -0.5*pow(DeltaR,2)*betaInf*cPos(Ridx(s),DeltaR)*dQdPhi*exp(-curState[Vpot][Ridx(s)][Zidx(s)]);
+            if( cPos(Ridx(s),DeltaR) <= VContour[Zidx(s)]) Source(s) = -4.0*PI*pow(DeltaR,2)*cPos(Ridx(s),DeltaR)*dQdPhi*exp(-curState[Vpot][Ridx(s)][Zidx(s)]);
             else Source(s) = 0;
+
         }
     }
+
+
+
+    //cout << Source << endl;
+    //cout << DeltaR << endl;
 
     // Finite Difference Matrix
     for(s=0;s<M*N;s++)
     {
         double wi,f,Mleft,Mright,Mup,Mdown,Mcenter;
 
-        if( Ridx(s) == 0 || Ridx(s) == M-1 )
+        if( Ridx(s) == 0 )
         {
             // Left side will normalize A = 0, so all the entries here are 0
-            // Right side normalize to A = Binf*r/2 (loaded into source vector)
             Mleft = 0;
             Mright = 0;
             Mup = 0;
             Mdown = 0;
             Mcenter = 1;
+        }
+        else if(Ridx(s)==M-1)
+        {
+            if(BdyRight==0)
+            {
+                // Imposing value of A
+                Mleft = 0;
+                Mright = 0;
+                Mup = 0;
+                Mdown = 0;
+                Mcenter = 1.0;
+            }
+            else if(BdyRight==1)
+            {
+
+            }
+            else
+            {
+                // Right side implemented a Robin boundary condition
+                Mleft = -4.0;
+                Mright = 0; // doesn't exist
+                Mup = 0;
+                Mdown = 0;
+                Mcenter = ( 2.0*DeltaR/cPos(M-1,DeltaR) + 3.0 );
+                AmMatrix(s,s-2) = 1.0;
+            }
         }
         else
         {
@@ -141,10 +143,10 @@ void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source)
             Mleft = 1.0-wi;
             Mup = pow(f,2);
             Mdown = pow(f,2);
-            Mcenter = -2-2*pow(f,2)-4*pow(wi,2);
+            Mcenter = -2.0-2.0*pow(f,2)-4.0*pow(wi,2);
         }
 
-        // Now we will adjust to incorproate boundary conditions
+        // Now we will adjust to incorproate z-boundary conditions
 
         // at top and bottom, dA/dz = 0
         if( Zidx(s) == N-1)
