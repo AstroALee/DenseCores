@@ -7,5 +7,6 @@ eigen/
 *.png
 *.txt
 a.out
+*out
 out
 DenseCoreCode
