@@ -11,7 +11,7 @@ YESUNIFORM = 0
 # Ratio of filament radius to half height 
 CYLINDERRADRAT = 1.0
 # Max number of loops in Poisson/Ampere solve
-LOOPMAX = 50
+LOOPMAX = 100
 # Are we in debug mode? (1= IC cylinder ; 2= Messy IC, relaxes to cylinder )
 DEBUG = 0
 #
@@ -34,4 +34,4 @@ Filament_Main : Filament_Main.o Filament_PrepInit.o Filament_SolveAll.o Filament
 	rm ./*.o
 
 clean:
-	rm $(OUTPUTNAME)
+	rm $(OUTPUTNAME) *.o

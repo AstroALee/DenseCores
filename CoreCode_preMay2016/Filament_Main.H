@@ -6,7 +6,7 @@
 int M;
 int N;
 double rRatio;
-double contR;
+double mExcess;
 double betaInf;
 double nCyl;
 double lambda;
@@ -16,9 +16,9 @@ double zL,rL;
 double DeltaR;
 double DeltaZ;
 
-/* Filament Boundary and rho value */
+/* Filament Boundary and value */
 double *VContour;
-double Rbdy = 0;
+double Vbdy = 0;
 
 /* Rho at the top boundary */
 double *RhoTop;
@@ -30,7 +30,7 @@ double totMass = -1;
 int NumArg = 9;
 
 /* Ambient background */
-double RhoTopCenter = 0; // must be determined by inputs
+double Pbackground = 0; // must be determined by inputs
 double Cbackground = 0.2*100000; //18821.9544;     // cgs Sound speed (10 K, 2.33 mmw)
 
 /* Boundary Condition Arrays for values or derivatives */
@@ -44,7 +44,7 @@ double ***prevState;
 
 /* Other values */
 
-/* Unit coversion from parsecs to code length units (G=c_s=rho(top,c)=1) */
+/* Unit coversion from parsecs to code length units (G=c_s=rho(edge)=1) */
 double Pc2Code;
 double Pc2Cm = 3.0856776e18;
 
@@ -64,7 +64,7 @@ double PointLoopTol = 1e-3;
 /* Variables related to the convergence solve */
 int ConvergeLoopMax = 1; // Set by LOOPMAX
 double ConvergeTol = 1e-4;
-double relaxFrac = 1.0;
+double relaxFrac = 0.50;
 
 // Output File Name Header
 string OutFileName = "Output";
@@ -95,7 +95,7 @@ void CheckArguments(int a)
     {
         WaterlooHeader("CheckArguments");
         cout << "You didn't provide the right number of arguments. You need eight or nine." << endl;
-        cout << "(M,N,z-length (pc), Ratio r-length to z-length, Contour Ratio, beta_inf, n, non-dim mass/length, (loopmax; opt))" << endl;
+        cout << "(M,N,z-length (pc), Ratio r-length to z-length, Mass excess frac, beta_inf, n, non-dim mass/length, (loopmax; opt))" << endl;
         cout << "You provided " << a-1 << " argument" << Plural(a-1,"s") << "." << endl;
         exit(1);
     }
@@ -109,7 +109,7 @@ void ReadArguments(int argc, char *a[])
     N = atoi(a[2]);
     zL = atof(a[3]);
     rRatio = atof(a[4]);
-    contR = atof(a[5]);
+    mExcess = atof(a[5]);
     betaInf = atof(a[6]);
     nCyl = atof(a[7]);
     lambda = atof(a[8]);
@@ -126,10 +126,10 @@ void ReadArguments(int argc, char *a[])
         exit(1);
     }
 
-    if(zL < 0 || rRatio < 1 || contR < 0 || contR > 1)
+    if(zL < 0 || rRatio < 1 || mExcess < 0 || mExcess > 1)
     {
         WaterlooHeader("ReadArguments");
-        cout << "Some values of zL, rRatio, or contR are weird. You provided zL, rRatio, contR = " << zL << ", " << rRatio << ", " << contR << endl;
+        cout << "Some values of zL, rRatio, or mExcess are weird. You provided zL, rRatio, mExcess = " << zL << ", " << rRatio << ", " << mExcess << endl;
         cout << "For example, the code assumes that edge of the filament is at most at the edge of the box (requires rRatio >= 1)" << endl;
         exit(1);
     }
@@ -161,7 +161,7 @@ void PrintArguments(int argc)
     cout << "N = " << N << endl;
     cout << "zL = " << zL << " parsecs" << endl;
     cout << "rRatio = " << rRatio << endl;
-    cout << "contR frac = " << contR << endl;
+    cout << "mExcess frac = " << mExcess << endl;
     cout << "betaInf = " << betaInf << endl;
     cout << "nCyl = " << nCyl << endl;
     cout << "lambda = " << lambda << endl << endl;

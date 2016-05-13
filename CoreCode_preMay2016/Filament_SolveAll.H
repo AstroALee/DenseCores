@@ -2,11 +2,10 @@
 
 void Converge();
 void RelaxSoln();
-void UpdateBdy();
 void NewVBdy();
-int UpdateRho();
+void UpdateQ();
+void UpdateRho();
 void CalcdQdP();
-void UpdateBC(int i);
 
 void ConvergeTest(int l, int& done);
 void PrintError(int i, double errV, double errA);

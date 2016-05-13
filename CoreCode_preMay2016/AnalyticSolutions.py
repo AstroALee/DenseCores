@@ -73,6 +73,6 @@ def DQDZeqn(r,Rmax,beta,rhoc):
         alp = np.sqrt(8.0*np.pi/beta)
         Binf = np.sqrt(8.0*np.pi/beta)
         dQdP = 2.0*Ccst*np.sqrt(rhoc)*(pwr+1)*(Ccst*r*r+1)**(pwr+1)/alp
-        #val = (dQdP)*r*np.exp(-Veqn(r,Rmax,beta,rhoc))  # works too
+        #val = (dQdP)*r*np.exp(-Veqn(r,Rmax,beta,rhoc))  # works too 
         val = 2.0*Ccst*np.sqrt(rhoc)/alp*(pwr+1)*(Ccst*r*r+1)**(-2)*r
         return val

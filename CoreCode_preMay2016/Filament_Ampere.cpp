@@ -44,9 +44,8 @@ void SolveAmpere()
 void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source)
 {
     int s;
-
-    double Binf = sqrt(8.0*PI*Rbdy/betaInf);
-    double alpha = sqrt(8*PI/betaInf); //Binf; // alpha^2 = 8*pi/beta_inf = 8*pi*(B^2/8*pi)/(rho_*c^2)_inft -> B^2
+    double Binf = sqrt(8.0*PI/betaInf);
+    double alpha = Binf; // alpha^2 = 8*pi/beta_inf = 8*pi*(B^2/8*pi)/(rho_*c^2)_inft -> B^2
     double Ccst = PI*RhoTop[0]/2.0/(1.0+1.0/betaInf);
 
     // Source vector
@@ -59,7 +58,7 @@ void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source)
         }
         else if( Ridx(s) == M-1 )
         {
-            if(BdyRight==0) // setting A
+            if(BdyRight==0)
             {
                 // We will manually set A = B_inf * r / 2
                 Source(s) = Binf*cPos(M-1,DeltaR)/2.0;
@@ -68,11 +67,11 @@ void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source)
                 double Redge = VContour[N-1];
                 Source(s) = (0.5*alpha*sqrt(RhoTop[0])/Ccst)*log(Ccst*Redge*Redge+1.0)/rL + 0.5*Binf*(rL-Redge*Redge/rL);
             }
-            else if(BdyRight==1) // setting dA/dr
+            else if(BdyRight==1)
             {
 
             }
-            else // setting cros(A)
+            else
             {
                 // We will impose a boundary condition (1/r)*d(rA)/dr = B_infty at this boundary
                 Source(s) = 2.0*DeltaR*Binf;
@@ -80,6 +79,7 @@ void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source)
         }
         else
         {
+            // Need dQ/dPhi = Q(i+1)-Q(i-1)+Q(j+1)-Q(j-1) / Phi(i+1)-Phi(i-1)+Phi(j+1)-Phi(j-1)
             double dQdPhi = curState[dQdP][Ridx(s)][Zidx(s)];
 
             if( cPos(Ridx(s),DeltaR) <= VContour[Zidx(s)]) Source(s) = -4.0*PI*pow(DeltaR,2)*cPos(Ridx(s),DeltaR)*dQdPhi*exp(-curState[Vpot][Ridx(s)][Zidx(s)]);

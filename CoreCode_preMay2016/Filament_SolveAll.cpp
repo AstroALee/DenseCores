@@ -2,7 +2,7 @@
 
 void SolvePoisson();
 void SolveAmpere();
-//void UpdateQ(int type);
+
 
 void Converge()
 {
@@ -29,52 +29,23 @@ void Converge()
         // Relax V and A using newState and prevState, use this to recalc boundary, Q, and Rho
         RelaxSoln();
 
+        // Find the new filament boundary (Vbdy[])
+        NewVBdy();
+
         // Update Q
-        UpdateQ(0);
+        UpdateQ();
 
-return;
         // Update Rho
-        int success=UpdateRho();
-        return;
-        if(success)
-        {
-            cout << "Found a rho contour!" << endl;
+        UpdateRho();
 
-            // Update Q
-            UpdateQ(1);
+        // Update dQdPhi
+        CalcdQdP();
 
-            // Update dQdPhi
-            CalcdQdP();
-
-            // Update boundary conditions
-            UpdateBC(0);
-
-            // Converged?
-            ConvergeTest(i,done);
-            if(done) { cout << "Converged! Breaking out." << endl; break; }
-        }
-        else
-        {
-            cout << "Did not find a rho contour, reverting back..." << endl;
-
-            // Copy previous state back to current state
-            CopyState(prevState,curState);
-
-            // Adjust the boundary conditions
-            UpdateBC(1);
-
-        }
-
+        // Converged?
+        ConvergeTest(i,done);
+        if(done) { cout << "Converged! Breaking out." << endl; break; }
 
     }
-
-};
-
-// Update Boundary conditions
-void UpdateBC(int type)
-{
-    // type = 0, recalc dVdr
-    // type = 1,
 
 };
 
@@ -93,13 +64,6 @@ void RelaxSoln()
 
 };
 
-// Find the Rho contour
-void UpdateBdy()
-{
-    // We want to find a contour where the
-
-}
-
 // Find the new filament boundary
 void NewVBdy()
 {
@@ -116,10 +80,10 @@ void NewVBdy()
 
     // Upate the global variable (boundary is always at rEdge on the top row)
     int lastIDX = 0;
-    if(rRatio>1) Rbdy = LIntY(Vrow,rEdge,DeltaR,M,lastIDX);
-    else Rbdy = curState[Vpot][M-1][N-1];
+    if(rRatio>1) Vbdy = LIntY(Vrow,rEdge,DeltaR,M,lastIDX);
+    else Vbdy = curState[Vpot][M-1][N-1];
 
-    cout << "Rbdy is now " << Rbdy << " at index " << lastIDX << endl;
+    cout << "Vbdy is now " << Vbdy << " at index " << lastIDX << endl;
 
     // For each row, find where Vcontour (N-2 <-> skipping the top)
     // Do so by searching for indices near the last row's index (to avoid jumps for double-values)
@@ -138,7 +102,7 @@ void NewVBdy()
             {
                 double Vleft = curState[Vpot][lastIDX-i-1][j];
                 double Vright = curState[Vpot][lastIDX-i][j];
-                if( (Vleft<=Rbdy && Rbdy<=Vright) || (Vleft>=Rbdy && Rbdy>=Vright) ) { idx = lastIDX-i; lastIDX = idx; break; }
+                if( (Vleft<=Vbdy && Vbdy<=Vright) || (Vleft>=Vbdy && Vbdy>=Vright) ) { idx = lastIDX-i; lastIDX = idx; break; }
             }
 
             // else look right?
@@ -146,13 +110,13 @@ void NewVBdy()
             {
                 double Vright = curState[Vpot][lastIDX+i+1][j];
                 double Vleft = curState[Vpot][lastIDX+i][j];
-                if( (Vleft<=Rbdy && Rbdy<=Vright) || (Vleft>=Rbdy && Rbdy>=Vright) ) { idx = lastIDX+i+1; lastIDX = idx; break; }
+                if( (Vleft<=Vbdy && Vbdy<=Vright) || (Vleft>=Vbdy && Vbdy>=Vright) ) { idx = lastIDX+i+1; lastIDX = idx; break; }
             }
         }
 
         if(idx==-1)
         {
-            cout << "NEVER FOUND Rbdy in row " << j << endl;
+            cout << "NEVER FOUND Vbdy in row " << j << endl;
             VContour[j] = VContour[j+1]; // manually set equal to value above (but something likely went wrong)
         }
         else
@@ -164,7 +128,7 @@ void NewVBdy()
             double x2 = cPos(idx,DeltaR);
             double m = (y2-y1)/(x2-x1);
 
-            VContour[j] = x1 + (Rbdy-y1)/m;
+            VContour[j] = x1 + (Vbdy-y1)/m;
             //cout << "Contour value at " << j << " is " << VContour[j] << endl;
         }
     }
@@ -175,135 +139,88 @@ void NewVBdy()
 
 };
 
-
-
-// Finds the ratio of a given contour. Input the upper-row's starting radius.
-double FindContRatio(double topRad, int type)
+// Given a new V and A, update Q
+// This is done differently than how we initialized Q in PrepInit
+// Q is constant along field lines, so we use the tow row (whose density never changes) to create
+// a map between the updated Phi = r*A and Q = rho*exp(V) values.
+// Then everywhere else in the box, we update Q appropriately.
+void UpdateQ()
 {
-    double curCont;
+    int i,j;
 
-    int i=0,j=0;
+    double rEdge = VContour[N-1];
 
-    // We know the top radius. Get the density at that location
-    while(true){i++; if(cPos(i,DeltaR)>topRad) break;}
+    // Make map
+    double PhiMap[M];
+    double QMap[M];
+    for(i=0;i<M;i++) PhiMap[i] = cPos(i,DeltaR)*curState[Apot][i][N-1];
 
-    // Interpolate to get density
-    double Dl = curState[Rho][i-1][N-1]; double Dr = curState[Rho][i][N-1];
-    double x = (topRad - cPos(i,DeltaR))/(DeltaR);
-    double desiredRho = (1-x)*Dl + x*Dr;
-    cout << "Desired rho = " << desiredRho << endl;
 
-    if(type) VContour[N-1] = topRad;
+    // To get the new boundary value of Q, use the potential and the assumption that rho = 1
+    double Qbdy = 1.0 * exp(Vbdy);
 
-    // Now loop over every row and find the location of this density value
-    int iLast = i;
+    // Since rho does not change on the upper row, we can update Q using its definition
+    for(i=0;i<M;i++)
+        if(cPos(i,DeltaR)<=VContour[N-1]) QMap[i] = RhoTop[i]*exp(curState[Vpot][i][N-1]);
+        else QMap[i] = Qbdy;
 
-    for(j=N-2;j=0;j--)
+    // Top row is done
+    for(i=0;i<M;i++) curState[Q][i][N-1] = QMap[i];
+
+    // Test if this map is monotonic or not
+    cout << "Updated Q at top: " ;
+    for(i=0;i<M-1;i++) cout << QMap[i] << ", ";
+    cout << QMap[M-1] << endl;
+
+    // This gives us a map. Now update the rest of the Q values.
+    for(i=0;i<M;i++) for(j=0;j<N-1;j++) // skipping the top row
     {
-        int iLeft = iLast; int iRight = iLast;
-        curCont = 0;
+        // Local phi value we want to use with PhiMap and QMap
+        double localPhi = cPos(i,DeltaR)*curState[Apot][i][j];
+        int idx;
 
-        while(true)
+        // Find the two indices localPhi lies between (if not monotonic, could be weird)
+        for(idx=1;idx<M;idx++)
         {
-            // Search around the last location of the contour and span out from there.
+            double Pleft = PhiMap[idx-1]; // cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
+            double Pright= PhiMap[idx];   // cPos(idx,DeltaR)*curState[Apot][idx][j];
 
-            // look left
-            if( ((curState[Rho][iLeft-1][j] <= desiredRho) && (desiredRho <= curState[Rho][iLeft][j]))
-               || ((curState[Rho][iLeft-1][j] >= desiredRho) && (desiredRho >= curState[Rho][iLeft][j]))
-            )
+            if( (Pleft <= localPhi && localPhi <= Pright) || (Pleft >= localPhi && localPhi >= Pright) )
             {
-                iLast = iLeft;
-
-                double Dl = curState[Rho][iLeft-1][j];
-                double Dr = curState[Rho][iLeft][j];
-                double m = DeltaR/(Dr-Dl);
-                curCont = cPos(iLeft,DeltaR) + m*(desiredRho-Dl);
-                cout << "Contour location for j=" << j << " is " << curCont << endl;
-
-                if(type) VContour[j] = curCont;
                 break;
             }
-            // look right
-            else if( ((curState[Rho][iRight-1][j] <= desiredRho) && (desiredRho <= curState[Rho][iRight][j]))
-                || ((curState[Rho][iRight-1][j] >= desiredRho) && (desiredRho >= curState[Rho][iRight][j]))
-            )
-            {
-                iLast = iRight;
-
-                double Dl = curState[Rho][iRight-1][j];
-                double Dr = curState[Rho][iRight][j];
-                double m = DeltaR/(Dr-Dl);
-                curCont = cPos(iRight,DeltaR) + m*(desiredRho-Dl);
-                cout << "Contour location for j=" << j << " is " << curCont << endl;
-
-                if(type) VContour[j] = curCont;
-                break;
-            }
-
-            // If here, didn't find it
-            if(iLeft==1 && iRight==M-2)
-            {
-                cout << "Did not find the density value!" << endl;
-                exit(1);
-            }
-
-            // Prepares to start again
-            if(iLeft > 1) iLeft--;
-            if(iRight < M-2) iRight++;
         }
+
+        if(idx==M-1)
+        {
+            // Possibly didn't find, but we know Phi analytically
+            // Assumes we are beyond the boundary
+        }
+
+        // We now know which two Phi values the local Phi lies between. Intropolate a Q value
+
+        double y1 = QMap[idx-1];
+        double y2 = QMap[idx];
+        double x1 = PhiMap[idx-1]; //cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
+        double x2 = PhiMap[idx];   //cPos(idx,DeltaR)*curState[Apot][idx][j];
+        double m = (y2-y1)/(x2-x1);
+
+        curState[Q][i][j] = y1 + m*(localPhi-x1);
+
     }
 
-    double rat = 0;
-    if(curCont!=0) rat = fabs(topRad/curCont);
-
-    return rat;
-}
-
+};
 
 // Given a new Q and V, calculate the new rho
-int UpdateRho()
+void UpdateRho()
 {
-    int success=0;
-
     int i,j;
     for(i=0;i<M;i++) for(j=0;j<N;j++)
     {
-        curState[Rho][i][j] = curState[Q][i][j]*exp(-curState[Vpot][i][j]);
+        if( cPos(i,DeltaR) > VContour[j] ) curState[Rho][i][j] = 0.0;
+        else curState[Rho][i][j] = curState[Q][i][j]*exp(-curState[Vpot][i][j]);
     }
 
-    // Now find the contour that has ratio rCont
-    // Need to find the two values of Rho at the top the contour resides between
-    double contLe = 0;
-    double contRi = 0;
-    for(i=1;i<M;i++)
-    {
-        contRi = FindContRatio(cPos(i,DeltaR),0);
-        cout << contRi << " = contRi for i=" << i << endl;
-
-        // Does rCont fall between contR and contL?
-        if( (contLe <= contR && contR <= contRi) || (contLe >= contR && contR >= contRi) )
-        {
-            // Linearly interpolate to find the exact radius
-            double m = (contRi-contLe)/DeltaR;
-            contRi = FindContRatio( contLe + m*(contR-contRi) , 1 ); // also override VContour with new values
-            cout << "Found a contour with ratio " << contRi << " (wanted contR= " << contR << ")" << endl;
-            success=1;
-
-            break;
-        }
-
-        // If not, prepare to start again
-        contLe = contRi;
-
-        // Fail?
-        if(i==M-1)
-        {
-            cout << "NEVER FOUND THE CONTOUR!" << endl;
-
-        }
-    }
-
-    return success;
 };
 
 

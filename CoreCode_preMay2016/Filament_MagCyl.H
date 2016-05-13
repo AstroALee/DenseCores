@@ -8,35 +8,8 @@
 //#include "stepperross.h"
 
 
-void NewUseOutput(Output out, double rEdge);
-void UseOutput(Output out, double rEdge);
 
-
-// Linearly interpolate on the output to find the particular r value where it occurs
-inline double LIntY(VecDoub Xarray, MatDoub Yarray, double point, int size, int elem)
-{
-    double value = 0;
-    int found = 0;
-    // Find the two points surrounding 'point' in Yarray[elem][:]
-    for(int i=0;i<size-1;i++)
-    {
-        if( (Yarray[elem][i] <= point && Yarray[elem][i+1] >= point) || (Yarray[elem][i] >= point && Yarray[elem][i+1] <= point)  )
-        {
-            found = i;
-
-            double y1 = Yarray[elem][i];
-            double y2 = Yarray[elem][i+1];
-            double x1 = Xarray[i];
-            double x2 = Xarray[i+1];
-            double m = (y2-y1)/(x2-x1);
-
-            value = x1 + (point-y1)/m;
-        }
-    }
-
-    if(!found) cout << "Interpolated value was not found!" << endl;
-    return value;
-};
+void UseOutput(Output out,double rEdge,double& curMass);
 
 
 // Linearly Interpolate an array onto a point. Returns value.

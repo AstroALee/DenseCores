@@ -60,67 +60,13 @@ struct derivs {
 
 };
 
-void FastMagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
-{
-    //Set for particular problem (independent variable = t)
-    const int Nvar = 5;
-    const double t_start = 0.0; // t here is the radius
-    const double t_end   = 3.0; // this should be large enough so that lambda = desiredLambda somewhere
-
-    //ODE tolerances and such
-    const double atol = 1.0e-8;
-    const double rtol = atol;
-    const double h1 = 0.001;
-    const double hmin = 1.0e-6;
-    derivs derv;  // Only need one declaration of this
-
-    int NRout = 10*M;  // need a good number for accurate interpolations
-
-    // Initialize intitial conditions
-    VecDoub ystart(Nvar);
-    // Rho start
-    ystart[0] = 1.0;
-    // Psi and Psi' start
-    ystart[1] = 0;
-    ystart[2] = 0;
-    // A start
-    ystart[3] = 0;
-    // Mass/length start
-    ystart[4] = 0;
-
-    // Output
-    Output out(NRout);
-
-    // Integrate
-    Odeint< StepperDopr5<derivs> > ode(ystart,t_start,t_end,atol,rtol,h1,hmin,out,derv);
-    ode.integrate();
-
-    //for(int i=0;i<out.count;i++) cout << "output " << i << " : " << out.ysave[4][i] << endl;
-    // What is the r where lambda=desiredLambda?
-    rEdge = LIntY(out.xsave, out.ysave, desiredLambda, out.count, 4); // 4 = lambda
-    cout << "Value of rEdge is " << rEdge << endl;
-
-    if(dooutput==2)
-    {
-        NewUseOutput(out,rEdge);
-    }
-    else if(dooutput==1)
-    {
-        // The cylinder solution is good to go.
-        for(int i=0 ; i<M; i++) RhoTop[i] = LInt(out.xsave,out.ysave,cPos(i,DeltaR),out.count,0); // 0 = Rho
-        for(int i=0 ; i<M; i++) cout << "RhoTop(" << i << ")=" << RhoTop[i] << endl;
-        for(int i=0 ; i<M; i++) cout << "Lambda(" << i << ")=" << LInt(out.xsave,out.ysave,cPos(i,DeltaR),out.count,4) << endl;
-    }
-
-
-};
-
 void MagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
 {
     //Set for particular problem (independent variable = t)
     const int Nvar = 5;
     const double t_start = 0.0; // t here is the radius
-    const double t_end   = 2.0; // this should be large enough so that lambda = desiredLambda somewhere
+    const double t_end   = 2.0; // this should be large enough so that rho=1 somewhere before t_end
+                                // for low beta, this number might need to be increased
 
     //ODE tolerances and such
     const double atol = 1.0e-8;
@@ -133,12 +79,10 @@ void MagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
     int NRidx = 0, NRmax = LoopMAX; // set in Filament_Main.H
     int NRout = 1000; //10*M;  // need a good number for accurate interpolations
 
-
+    // new (first) guess (drawn from averages of typical cases)
     double rhoNG;
-    // old:: new (first) guess (drawn from averages of typical cases)
-    //if(betaInf < 0.5) rhoNG = 4.0;  // 'intuition'
-    //else rhoNG = 1.21;
-    rhoNG = 1.0;
+    if(betaInf < 0.5) rhoNG = 4.0;  // 'intuition'
+    else rhoNG = 1.21;
 
     double rhoOG = 0;   // old guess
     double NRerrNG = 1;   // error in rho
@@ -171,8 +115,8 @@ void MagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
 
         // Let's see how we did
 
-        // What is the r where lambda=desiredLambda?
-        rEdge = LIntY(out.xsave, out.ysave, desiredLambda, out.count, 4); // 4 = lambda
+        // What is the r where rho=1?
+        rEdge = LIntY(out.xsave, out.ysave, 1.0, out.count, 0); // 0 = density
 
         // What is lambda at this radius?
         double curLam = LInt(out.xsave,out.ysave,rEdge,out.count,4); // 4 = lambda
@@ -236,64 +180,6 @@ void MagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
 };
 
 
-void NewUseOutput(Output out, double rEdge)
-{
-    // We have already done Rho, we only need the values for V and A here
-
-    // Let's fill up the state vector
-    int i,j;
-
-    // Rho at top edge
-    double RTop = LInt(out.xsave,out.ysave,rEdge,out.count,0); // Rho
-
-    // Outside the filament, we use the analytic form for the potential
-    double VEdge = LInt(out.xsave,out.ysave,rEdge,out.count,1); // Vpot
-    double VEdgeD = LInt(out.xsave,out.ysave,rEdge,out.count,2); // d(Vpot)/dR
-
-    // V outside has the form  V = C1*ln(r/rEdge) + C2
-    // C1 and C2 chosen so V is smooth at rEdge (V(rE) and DV(rE) match)
-    // C1 = rE*DV(rE)     C2 = V(rE)
-    double C1 = VEdgeD*rEdge;
-    double C2 = VEdge;
-
-    // We will need these constants later
-    Ccst[0] = C1;
-    Ccst[1] = C2;
-
-    for(i=0;i<M;i++) for(j=0;j<N;j++)
-    {
-        double rPos = cPos(i,DeltaR);
-        double zPos = cPos(j,DeltaZ);
-
-        if(rPos <= rEdge)
-        {
-            curState[Vpot][i][j] = LInt(out.xsave,out.ysave,rPos,out.count,1); // 1 = Vpot
-
-            // We solved for r*A, have to divide by r
-            if(i>0) curState[Apot][i][j] = LInt(out.xsave,out.ysave,rPos,out.count,3)/rPos; // 3 = Apot*r
-
-        }
-        else
-        {
-            // Analytic form for V
-            curState[Vpot][i][j] = Ccst[0]*log(rPos/rEdge)+Ccst[1] ;
-
-            // Analytic form for A*r outside cylinder = Cst*ln() + 0.5*Binf*(r^2-Redge^2)
-            double Binf = sqrt(8.0*PI*RTop/betaInf);
-            double Acyl = LInt(out.xsave,out.ysave,rEdge,out.count,3) + 0.5*Binf*( pow(rPos,2) - pow(rEdge,2) );
-            Acyl = Acyl/rPos;
-            curState[Apot][i][j] = Acyl;
-
-        }
-    }
-
-
-    // Want Vpot = 0 at top left corner
-    // Should have that by default at this point
-    double Vnorm = curState[Vpot][0][N-1];
-    for(i=0;i<M;i++) for(j=0;j<N;j++) curState[Vpot][i][j] = curState[Vpot][i][j] - Vnorm;
-
-};
 
 void UseOutput(Output out,double rEdge)
 {

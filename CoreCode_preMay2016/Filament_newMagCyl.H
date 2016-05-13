@@ -8,7 +8,7 @@
 //#include "stepperross.h"
 
 
-void NewUseOutput(Output out, double rEdge);
+
 void UseOutput(Output out, double rEdge);
 
 

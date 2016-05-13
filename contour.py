@@ -5,114 +5,205 @@ from numpy import *
 import scipy as spi
 import sys
 
+cmapalpha = 0.75
+
+# INPUTS
+# ----
+# python contour.py A Y/N Log # B #
+# A = numerical index for what to plot
+# Y/N = unit convert?
+# Log = Log spacing?
+# # = number of contours (min = 2)
+# B (y/n) = plot b field lines?
+# # = number of B-field lines (must be >=2)
+
+# Makes negative values solid (since grav potential will have both and the sign doesn't matter)
 mpl.rcParams['contour.negative_linestyle'] = 'solid'
 
-# Colors
-dred = [0.6,0,0]
-
 # Reads in raw data as column arrays
+# R cell, Z Cell, R dis, Z dis, V, A, Q, Rho
 data = genfromtxt('Output.out',delimiter=",",unpack=True,skip_header=2)
-
-# Read in contour array
+# Read in contour array (line 2)
 flen = len(data[0,:])
 VCont = genfromtxt('Output.out',delimiter=",",unpack=True,skip_header=1,skip_footer=flen)
-
-# M, N, zL (pc), rRatio (entire box), mExcess (sol), beta, n
+# M, N, zL, rRatio (entire box), mExcess (non-dim mass), beta, n, VContour value, lambda, Pc2Code, Sol2Code
+# All the physical quantities are non-dimensional
 Params = genfromtxt('Output.out',delimiter=",",unpack=True,skip_footer=flen+1)
 
 
+# DEFINE USEFUL VALUES
 Pc2Code = Params[-2]
 Sol2Code = Params[-1]
+M = Params[0]
+N = Params[1]
+zL = Params[2]
+rL = Params[2]*Params[3]
+DeltaR = rL/M
+DeltaZ = zL/N
 
 
-r = data[0,:]
-z = data[1,:]
+# Index for plotting
+idxS = str(sys.argv[1])
+idx = -1
+if(idxS=='0'): idx = 0
+if(idxS=='1'): idx = 1
+if(idxS=='2'): idx = 2
+if(idxS=='3'): idx = 3
+if(idxS=='4' or idxS.lower()=='v'): idx = 4
+if(idxS=='5' or idxS.lower()=='a'): idx = 5
+if(idxS=='6' or idxS.lower()=='q'): idx = 6
+if(idxS=='7' or idxS.lower()=='rho'): idx = 7
+if(idxS=='8' or idxS.lower()=='phi'): idx = 8
 
+
+if(idx==-1):
+    print "ERROR with idx"
+    exit(1)
+if(len(sys.argv)<5):
+    print "Not enough inputs"
+    exit(1)
+
+
+Units = 0
+if( str(sys.argv[2]).lower()=='y'): Units = 1
+
+ContLog = 0
+if(str(sys.argv[3]).lower()=='y'): ContLog = 1
+
+NCont = 2
+if(int(sys.argv[4])>2): NCont = int(sys.argv[4])
+
+
+
+# USEFUL ARRAYS
+# Position arrays
 Rpos = data[2,:]
 Zpos = data[3,:]
 
-idx = int(sys.argv[1])
+# Grid arrays, THIS IS WHAT IS USED FOR PLOTTING
+RGrid = arange(M+1)*DeltaR # +1 because matplotlib grid is the edges, not the center of cells
+ZGrid = arange(N+1)*DeltaZ
 
-Bfield = 'N'
-NBCont = 2
-if( len(sys.argv) > 2 ):
-    if(sys.argv[2].upper()=='Y'):
-        Bfield = 'Y'
-        if( len(sys.argv) > 3 ): NBCont = int(sys.argv[3])
+RMesh, ZMesh = meshgrid(arange(M)*DeltaR,arange(N)*DeltaZ)
 
-if(idx==8): PlotMe = multiply(Rpos,data[5,:])
+# THIS IS WHAT IS PLOTTED
+if(idx==8): PlotMe = multiply(Rpos,data[5,:]) # Phi = r*A
 else: PlotMe = data[idx,:]
+PreparedPlot = PlotMe.reshape(M,N).T  # Need the transpose (.T)
 
+
+# PlotMe may be a derived quantity, here are some values
 plotmin = min(PlotMe)
-plotmax = max(PlotMe)
 plot2min = min(n for n in PlotMe if n!=plotmin)
+plotmax = max(PlotMe)
 plot2max = min(n for n in PlotMe if n!=plotmax)
 
-DeltaR = data[2,-1]/(max(r)+1)
-DeltaZ = data[3,-1]/(max(z)+1)
+# POtentially we have some B fields to draw
+Bfield = 'N'
+NBCont = 1
+if( len(sys.argv) > 5 ):
+    if(sys.argv[5].upper()=='Y'):
+        Bfield = 'Y'
+        if( len(sys.argv) > 5 and int(sys.argv[6]) > 1): NBCont = int(sys.argv[6]) # will plot min, at least
 
-RGrid = arange(max(r)+2)*DeltaR ## Grid is the edges, not the center of cells
-ZGrid = arange(max(z)+2)*DeltaZ
-
-RMesh, ZMesh = meshgrid(arange(max(r)+1)*DeltaR,arange(max(z)+1)*DeltaZ)
-PlotMesh = PlotMe.reshape(max(r)+1,max(z)+1).T
-
-
-PrepPlot = PlotMe.reshape(max(r)+1,max(z)+1).T  # Need the transpose (.T)
-
-
-# IF plotting B fields, get some contours
+# If B fields, plot field lines with equal
+BContours = []
 if(Bfield=='Y'):
-    PhiData = multiply(Rpos,data[5,:])
-    BContours = []
-    DeltaPhi = (max(PhiData)-min(PhiData))/1.0/NBCont
-    #print DeltaPhi
+    curR = rL/10.0 #first anchor point
+    lastR = 0
+    PhiArray = multiply(Rpos,data[5,:]) # we draw contours of constant phi
+    botRowR = [ Rpos[k] for k in range(int(M*N)) if (k%(int(N))==0) ] # bottom row R values
+    botRowPhi = [ PhiArray[k] for k in range(int(M*N)) if (k%(int(N))==0) ] # bottom row Phi values
+    botPhi = interp(curR,botRowR,botRowPhi) # phi value at curR
+    lastPhi = botPhi
+    goalDelta = botPhi/curR # assumes curPhi(r=0) = 0, goal is cst DeltaPhi/r
+    #goalDelta = botPhi      # assumes curPhi(r=0) = 0, goal is cst DeltaPhi
+    # now finds the list of r anchor points
+    rAnchor=[]
+    rAnchor.append(curR)
+    for i in range(1,NBCont):
+        locDelta = [(x - lastPhi)/(y+0.000000001) for x,y in zip(botRowPhi,botRowR)] # first goal
+        #print locDelta
+        #locDelta = [(x - lastPhi) for x in botRowPhi] # second goal
+        #print locDelta
+        # now find new r
+        curR = interp(goalDelta,locDelta,botRowR) # if Phi is monotonically increasing, this will always work
+        locPhi = interp(curR,botRowR,botRowPhi)
+        rAnchor.append(curR)
+        #print curR
+        lastPhi = locPhi
+    #With the set of anchor points, now find contours
     for i in range(NBCont):
-        curPhi = DeltaPhi*(i+1.0)
-        print curPhi
         curCont = []
-        for j in range(int(Params[1])): #for each Z row
-            curRow = [ PhiData[k] for k in range(int(Params[0]*Params[1])) if (k%(int(Params[1]))==j) ] #PhiData[ Params[1]*i : Params[1]*(i+1) ]
-            print curRow
-            leftidx = 0
-            for k in range(len(curRow)-1):
-                if(( curPhi <= curRow[k+1] and curPhi >= curRow[k] ) or ( curPhi >= curRow[k+1] and curPhi <= curRow[k] )):
-                    leftidx = k
-                    break
-            lPhi = curRow[leftidx]
-            rPhi = curRow[leftidx+1]
-            lRos = DeltaR*(leftidx)
-            rRos = DeltaR*(leftidx+1)
-            m = (rPhi-lPhi)/DeltaR
-            curCont.append( (curPhi-lPhi)/m + lRos )
+        curR = rAnchor[i]
+        #using the new value of r (curR), find the phi value on the bottom
+        curPhi = interp(curR,botRowR,botRowPhi)
+        #now for each row above, find the r value where curPhi occurs (B fields are contours of Phi)
+        curCont.append(curR)
+        for j in range(1,int(N)): #for each Z row
+            locRowPhi = [ PhiArray[k] for k in range(int(M*N)) if (k%(int(N))==j) ] # local row Phi values
+            locR = interp(curPhi,locRowPhi,botRowR) # each row as the same set of R values, hence botRowR
+            curCont.append(locR)
         BContours.append(curCont)
 
+# CONTOURS
+cmapmin = plotmin
+cmapmax = plotmax
+if(idx==7):
+    #cmapmin = 1.0 # Density
+    cmapmin = plot2min
+    NCont = NCont + 1
+else:
+    NCont = NCont + 2
+#print("Cmapmin = " + str(cmapmin))
+#print("Cmapmax = " + str(cmapmax))
+
+if(ContLog):
+    CLevels = cmapmin + (cmapmax-cmapmin)*logspace(-1.5,0,NCont)
+else:
+    CLevels = cmapmin + (cmapmax-cmapmin)*linspace(0,1,NCont)
+
+#CLevels = sort(append(CLevels,[0]))
+print("Clevels are = " + str(CLevels))
+print("Includes max and min, which likely won't be seen")
 
 
+# UNIT CONVERSIONS
+Code2Pc = 1.0/Pc2Code
 
-#plt.setp(ax,xticklabels=[]) #turns off labels
+PlotUnit = 1.0
 
 # ---===---===---===---===---===---===---===---===---===
 plt.subplot(1,1,1)
 plt.subplots_adjust(left=0.18,bottom=0.15,wspace=0.0001,hspace=0.0001)
 
 #plt.axes([0.16,0.13,0.79,0.82]) #left,bot,wid,height
-plt.axis([0, data[2,-1]/Pc2Code, 0, data[3,-1]/Pc2Code])
+rPlotmax = rL
+zPlotmax = zL
+if(Units):
+    rPlotmax = rPlotmax*Code2Pc
+    zPlotmax = zPlotmax*Code2Pc
+
+plt.axis([0, rPlotmax, 0, zPlotmax])
 
 # Axis labels
-plt.xlabel(r'Distance   $R$  (pc)') #TeX requires the r
-plt.ylabel(r'Distance   $Z$  (pc)')
+if(Units):
+    plt.xlabel(r'Distance   $R$  (pc)') #TeX requires the r
+    plt.ylabel(r'Distance   $Z$  (pc)')
+else:
+    plt.xlabel(r'Distance   $R$   (nd)') #TeX requires the r
+    plt.ylabel(r'Distance   $Z$   (nd)')
 
+# Plot Titles
 if(idx==0): plt.title(r'R Grid id')
 if(idx==1): plt.title(r'Z Grid id')
-if(idx==2): plt.title(r'R Distance (pc)')
-if(idx==3): plt.title(r'Z Distance (pc)')
+if(idx==2): plt.title(r'R Distance')
+if(idx==3): plt.title(r'Z Distance')
 if(idx==4): plt.title(r'Gravitational Potential')
 if(idx==5): plt.title(r'A')
 if(idx==6): plt.title(r'Q')
 if(idx==7): plt.title(r'Density')
 if(idx==8): plt.title(r'Phi')
-
 
 #Moves the x-axis down a little
 plt.gca().xaxis.labelpad=9 #5 is default
@@ -127,62 +218,54 @@ ax.tick_params(which='minor',size=7)
 ax.tick_params(axis='y',pad=9)
 ax.tick_params(axis='x',pad=9)
 
-# Adds dashed lines
-#xline = [-5,5]
-#yline = [2,2]
-#plt.plot(xline,yline,'k:',linewidth=2.0)
+if(Units):
+    RGrid = RGrid*Code2Pc
+    ZGrid = ZGrid*Code2Pc
+    RMesh = RMesh*Code2Pc
+    ZMesh = ZMesh*Code2Pc
+    DeltaZ = DeltaZ*Code2Pc
+    DeltaR = DeltaR*Code2Pc
+    VCont = VCont*Code2Pc
+    PreparedPlot = PreparedPlot*PlotUnit
+    BContours=array(BContours)*Code2Pc
 
 
+# Max and Min for ColorMap
 # Overwrite min max plotted
 #plotmin = 0
 #plotmax = 20
-
-
-#plt.pcolor(RGrid,ZGrid,log10(PlotPlot),cmap='Paired',vmin=log10(plot2min),vmax=log10(plotmax))
-
-NCont = 10
 cmapmin = plotmin
 cmapmax = plotmax
 
-# Log spaced
-if(idx==7): CLevels = 1 + (cmapmax-1)*logspace(-1.5,0,NCont)
-else: CLevels = cmapmin + (cmapmax-cmapmin)*logspace(-1.5,0,NCont)
-print CLevels
-# Linearly spaced
+# ColorMap choice
+cmap = 'Paired'
+cmap = 'RdBu_r'
+#cmap = 'Spectral'
+#cmap = 'Blues_r'
+if(cmapalpha>0):
+    plt.pcolor(RGrid,ZGrid,PreparedPlot,cmap=cmap,vmin=cmapmin,vmax=cmapmax,alpha=cmapalpha)
+    plt.colorbar()
 
-
-#plt.pcolor(RGrid,ZGrid,PrepPlot,cmap='Paired',vmin=cmapmin,vmax=cmapmax)
-#plt.colorbar()
-CS = plt.contour(RMesh/Pc2Code,ZMesh/Pc2Code,PlotMesh,levels=CLevels,colors='k')
-#CS = plt.contour(RMesh,ZMesh,PlotMesh,colors='k')
-plt.clabel(CS, inline=1, fontsize=10)
-
-
-
+CS = plt.contour(RMesh,ZMesh,PreparedPlot,levels=CLevels,colors='k',linewidths=2.5)
+plt.clabel(CS, inline=1, fontsize=9)
 
 # Filament Boundary
 area = pi*2.0
-plt.scatter(VCont/Pc2Code,(ZGrid[:-1]+0.5*DeltaZ)/Pc2Code,s=1.5*area,c='black')
-plt.plot(VCont/Pc2Code,(ZGrid[:-1]+0.5*DeltaZ)/Pc2Code,c='black',linewidth=1,alpha=0.3)
-
-
+plt.scatter(VCont,(ZGrid[:-1]+0.5*DeltaZ),s=1.5*area,c='black')
+plt.plot(VCont,(ZGrid[:-1]+0.5*DeltaZ),c='black',linewidth=1,alpha=0.3)
 
 # B fields
 if(Bfield=='Y'):
     for i in range(NBCont):
-        plt.plot(BContours[i]/Pc2Code,(ZGrid[:-1]+0.5*DeltaZ)/Pc2Code,c='black',linewidth=2,alpha=0.7)
-        #plt.scatter(BContours[i],ZGrid[:-1]+0.5*DeltaZ,s=2*1.5*area,c='blue',marker=(4,1))
+        plt.plot(BContours[i],(ZGrid[:-1]+0.5*DeltaZ),'--',c='black',linewidth=2,alpha=0.7)
 
 #Text
 #plt.text(0.05,0.06,r'${\cal M} = 4.47$',fontsize=26.0)
-
-#plt.legend(loc=4,numpoints=1,ncol=2,labelspacing=0.1,columnspacing=0.9)
 
 
 # Creates Plot
 #plt.show()
 plt.savefig('Contour.pdf')
-#plt.savefig('figure3.eps')
 
 #Restores defaults
 mpl.rcdefaults()
