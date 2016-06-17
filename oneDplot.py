@@ -41,8 +41,9 @@ data = genfromtxt('Output.out',delimiter=",",unpack=True,skip_header=2)
 # Read in contour array
 flen = len(data[0,:])
 VCont = genfromtxt('Output.out',delimiter=",",unpack=True,skip_header=1,skip_footer=flen)
-# M, N, zL (pc), rRatio (entire box), mExcess (sol), beta, n, Pc2Code, Sol2Code
+# M, N, zL (pc), rRatio (entire box), mExcess (sol), beta, n, Rbdy, Lambda, Pc2Code, Sol2Code
 Params = genfromtxt('Output.out',delimiter=",",unpack=True,skip_footer=flen+1)
+
 M = int(Params[0])
 N = int(Params[1])
 zL = float(Params[2])
@@ -51,6 +52,8 @@ DeltaR = rL/float(M)
 DeltaZ = zL/float(N)
 beta = float(Params[5])
 nCyl = float(Params[6])
+Rbdy = float(Params[7]) # Rho at edge of filament
+dLam = float(Params[8])
 
 Pc2Code = float(Params[-2])
 Sol2Code = float(Params[-1])
@@ -129,6 +132,8 @@ elif(idx==9): # computes r*exp(-V)*dQ/dPhi (propto j)
             dQdPhiMat[i] = dQval/dPval
     #YCordAll = multiply( multiply(data[2,:],dQdPhiMat) , exp(-data[4,:]) )
     YCordAll = multiply( multiply(data[2,:],data[8,:]) , exp(-data[4,:]) )
+    #YCordAll = data[8,:]
+
 
 # Now pull out the data we will plot
 YCord = []
@@ -141,18 +146,19 @@ print YCord
 # If plotting analytic solutions, construct those before unit conversions happen
 # data[7,N-1] = rho(r=0) at top
 if(PlotEQ):
+    print(beta)
     if(idx==4):
         Yanal = [ AS.Veqn(i,VCont[0],beta,data[7,N-1]) for i in XCord]
     elif(idx==5):
-        Yanal = [ AS.Aeqn(i,VCont[0],beta,data[7,N-1]) for i in XCord]
+        Yanal = [ AS.Aeqn(i,VCont[0],beta,data[7,N-1],Rbdy,nCyl) for i in XCord]
     elif(idx==6):
         Yanal = [ AS.Qeqn(i,VCont[0],beta,data[7,N-1]) for i in XCord]
     elif(idx==7):
         Yanal = [ AS.RHOeqn(i,VCont[0],beta,data[7,N-1]) for i in XCord]
     elif(idx==8):
-        Yanal = [ AS.PHIeqn(i,VCont[0],beta,data[7,N-1]) for i in XCord]
+        Yanal = [ AS.PHIeqn(i,VCont[0],beta,data[7,N-1],Rbdy,nCyl) for i in XCord]
     elif(idx==9):
-        Yanal = [ AS.DQDZeqn(i,VCont[0],beta,data[7,N-1]) for i in XCord]
+        Yanal = [ AS.DQDZeqn(i,VCont[0],beta,data[7,N-1],Rbdy,nCyl) for i in XCord]
 
 
 
@@ -195,7 +201,7 @@ maxY = maxY + deltaRange/20.0
 
 # Axis limits
 plt.axis([0, XCord.max(), minY,maxY])
-#plt.axis([0, 0.02,0,0.05])
+#plt.axis([0, XCord.max(), minY,1])
 
 # Axis labels
 if(Units): plt.xlabel(r'Distance  (pc)') #TeX requires the r

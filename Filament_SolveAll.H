@@ -4,7 +4,7 @@ void Converge();
 void RelaxSoln();
 void UpdateBdy();
 void NewVBdy();
-int UpdateRho();
+int UpdateRho(int i);
 void CalcdQdP();
 void UpdateBC(int i);
 

@@ -21,6 +21,8 @@ void SolveAmpere()
 
     // The finite difference scheme is applied
     createAmpereMatrix(AmMatrix,Source);
+    //cout << AmMatrix << endl;
+    //cout << Source << endl;
 
     // Now call LinAlgebra package to invert the matrix and obtain the new potential values
     Soln = AmMatrix.colPivHouseholderQr().solve(Source);
@@ -45,9 +47,9 @@ void createAmpereMatrix(MatrixXd& AmMatrix, VectorXd& Source)
 {
     int s;
 
-    double Binf = sqrt(8.0*PI*Rbdy/betaInf);
-    double alpha = sqrt(8*PI/betaInf); //Binf; // alpha^2 = 8*pi/beta_inf = 8*pi*(B^2/8*pi)/(rho_*c^2)_inft -> B^2
-    double Ccst = PI*RhoTop[0]/2.0/(1.0+1.0/betaInf);
+    double Binf = sqrt(8.0*PI/beta0)*pow(Rbdy,nCyl);
+    double alpha = sqrt(8*PI/beta0); //Binf; // alpha^2 = 8*pi/beta_inf = 8*pi*(B^2/8*pi)/(rho_*c^2)_inft -> B^2
+    double Ccst = PI*RhoTop[0]/2.0/(1.0+1.0/beta0); // RhoTop[0] should be 1
 
     // Source vector
     for(s=0;s<M*N;s++)

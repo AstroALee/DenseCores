@@ -50,8 +50,8 @@ int main(int argc, char *argv[])
     Converge();
 
     // Calculate the total mass
-    CodeHeader("Calculating Final Masses");
-    CalcMass();
+    //CodeHeader("Calculating Final Masses");
+    //CalcMass();
 
     // Print the final state
     PrintState(curState,".","out");

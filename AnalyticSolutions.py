@@ -39,10 +39,10 @@ def Veqn(r,Rmax,beta,rhoc):
     else:
         return (3.14159*rhoc/Ccst)*np.log(Ccst*Rmax*Rmax+1.0) + 2.0*lam*np.log(r/Rmax)
 
-def Aeqn(r,Rmax,beta,rhoc):
+def Aeqn(r,Rmax,beta,rhoc,rbdy,nCyl):
     alp = np.sqrt(8.0*np.pi/beta)
     Ccst = np.pi*rhoc/(2.0*(1.0+1.0/beta))
-    Binf = np.sqrt(8.0*np.pi/beta)
+    Binf = alp*((rbdy)**nCyl)
     if(r<Rmax):
         return ( alp*np.sqrt(rhoc)/2.0/Ccst*np.log(Ccst*r*r+1.0)/(r+0.0000000001) )
     else:
@@ -61,17 +61,17 @@ def Qeqn(r,Rmax,beta,rhoc):
     else:
         return (RHOeqn(r,Rmax,beta,rhoc)*np.exp(Veqn(r,Rmax,beta,rhoc)))
 
-def PHIeqn(r,Rmax,beta,rhoc):
-    return ( r*Aeqn(r,Rmax,beta,rhoc) )
+def PHIeqn(r,Rmax,beta,rhoc,Rbdy,nCyl):
+    return ( r*Aeqn(r,Rmax,beta,rhoc,Rbdy,nCyl) )
 
-def DQDZeqn(r,Rmax,beta,rhoc):
+def DQDZeqn(r,Rmax,beta,rhoc,Rbdy,nCyl):
     if(r>Rmax):
         return 0.0
     else:
         Ccst = 3.14159*rhoc/(2.0*(1.0+1.0/beta))
         pwr = 3.14159*rhoc/Ccst-3.0
         alp = np.sqrt(8.0*np.pi/beta)
-        Binf = np.sqrt(8.0*np.pi/beta)
+        Binf = np.sqrt(8.0*np.pi/beta)*(Rbdy)**nCyl
         dQdP = 2.0*Ccst*np.sqrt(rhoc)*(pwr+1)*(Ccst*r*r+1)**(pwr+1)/alp
         #val = (dQdP)*r*np.exp(-Veqn(r,Rmax,beta,rhoc))  # works too
         val = 2.0*Ccst*np.sqrt(rhoc)/alp*(pwr+1)*(Ccst*r*r+1)**(-2)*r

@@ -32,16 +32,18 @@ void Converge()
         // Update Q
         UpdateQ(0);
 
-return;
         // Update Rho
-        int success=UpdateRho();
-        return;
+        int success=UpdateRho(0);
+
         if(success)
         {
             cout << "Found a rho contour!" << endl;
 
-            // Update Q
+            // Update Q (also updates global value of Rbdy)
             UpdateQ(1);
+
+            // Update Rho right of contour
+            success=UpdateRho(1);
 
             // Update dQdPhi
             CalcdQdP();
@@ -74,7 +76,95 @@ return;
 void UpdateBC(int type)
 {
     // type = 0, recalc dVdr
-    // type = 1,
+    // type = 1, reverting back, upping Malter
+    if(type==0)
+    {
+        cout << "Updating boundary conditions!" << endl;
+
+        // Need cylinder with radius equal to VContour[N-1]
+        double Crad = VContour[N-1];
+        // Find last index
+        int i=0; while(true) {i++; if(cPos(i,DeltaR)>Crad) break; }
+        if(i>M-1) i=M-1;
+
+        // 1D trap integral to get reduced cylinder mass
+        double Mredcy = OneDMassInt(RhoTop, i);
+        cout << "Cylinder mass = " << Mredcy << " (2zlambda = " << 2*zL*lambda << ")" << endl;
+
+        // Total mass = totMass
+        if(Mredcy>2*zL*lambda)
+        {
+            cout << "ISSUE!: Reduced cylinder has more mass than total (2*zL*lambda) mass! WHAT?!" << endl;
+            Mredcy = totMass;
+        }
+
+        // compute 2d mass integral to get mass in the box
+        double Mbox = TrapInt();
+        cout << "Mbox = " << Mbox << endl;
+
+        if(Mredcy>Mbox)
+        {
+            cout << "ISSUE!: Reduced cylinder has more mass than mass in the box... weird as f*@$ !" << endl;
+            exit(1);
+        }
+
+
+        if(Mredcy>2*zL*lambda) Mredcy = 2*zL*lambda;
+
+        double Mexcess = 2*zL*lambda - Mredcy; //Mbox - Mredcy;
+        if(Mexcess<0)
+        {
+            cout << "Mexcess < 0!" << endl;
+            Mexcess = 0;
+        }
+        double Medgecy = Mredcy; //2*zL*lambda - Mexcess;
+        if(Medgecy<0)
+        {
+            cout << "Medgecy < 0!" << endl;
+            Medgecy = 0;
+            Mexcess  = 2*zL*lambda;
+        }
+
+        // Over-rides
+        Medgecy = 0*2*zL*lambda;
+        Mexcess = 1*2*zL*lambda;
+
+        // Boundary conditions will use Mexcess for the points and totMass - Mexcess for the cylinder
+        double CyldVdr = Medgecy/zL/rL;
+        for(i=0;i<N;i++) VRight[i]=CyldVdr; // overwrites
+
+        // Now adds in point masses dVdr = G*Mexcess/Rad^2 (same number of points as in initial conditions)
+        // Potential grad from point masses
+        double zP=0;
+        cout << "Max points = " << PointLoopMax << endl;
+        for(i=0;i<=PointLoopMax;i++)
+        {
+            //if(DEBUG==2 || Mcode==0) break;
+            int j;
+            for(j=0;j<N;j++)
+            {
+                double X1 = sqrt( pow(cPos(M-1,DeltaR),2) + pow(cPos(j,DeltaZ)-zP,2) );
+                double X2 = sqrt( pow(cPos(M-1,DeltaR),2) + pow(cPos(j,DeltaZ)+zP,2) );
+
+                VRight[j] = VRight[j] + Mexcess/pow(X1,2);
+                if(zP>0) VRight[j] = VRight[j] + Mexcess/pow(X2,2);
+            }
+            zP = zP + 2.0*zL;
+        }
+
+        // dVdR is now updated
+        cout << "VRight values = ";
+        for(int j=0;j<N;j++) cout << VRight[j] << ", ";
+        cout << endl;
+
+    }
+    else
+    {
+        cout << "Reverting boundary conditions!" << endl;
+
+    }
+
+
 
 };
 
@@ -185,21 +275,26 @@ double FindContRatio(double topRad, int type)
     int i=0,j=0;
 
     // We know the top radius. Get the density at that location
-    while(true){i++; if(cPos(i,DeltaR)>topRad) break;}
+    while(true){i++; if(cPos(i,DeltaR)>=topRad) break;}
 
     // Interpolate to get density
-    double Dl = curState[Rho][i-1][N-1]; double Dr = curState[Rho][i][N-1];
-    double x = (topRad - cPos(i,DeltaR))/(DeltaR);
+    double Dl = RhoTop[i-1]; double Dr = RhoTop[i];
+    double x = (topRad - cPos(i-1,DeltaR))/(DeltaR);
     double desiredRho = (1-x)*Dl + x*Dr;
-    cout << "Desired rho = " << desiredRho << endl;
+    //cout << "Desired rho = " << desiredRho << endl;
 
-    if(type) VContour[N-1] = topRad;
+    if(type)
+    {
+        VContour[N-1] = topRad;
+    }
 
     // Now loop over every row and find the location of this density value
     int iLast = i;
 
-    for(j=N-2;j=0;j--)
+    for(j=N-2;j>=0;j--)
     {
+        //cout << "Trying for j = " << j << endl;
+
         int iLeft = iLast; int iRight = iLast;
         curCont = 0;
 
@@ -208,40 +303,38 @@ double FindContRatio(double topRad, int type)
             // Search around the last location of the contour and span out from there.
 
             // look left
-            if( ((curState[Rho][iLeft-1][j] <= desiredRho) && (desiredRho <= curState[Rho][iLeft][j]))
-               || ((curState[Rho][iLeft-1][j] >= desiredRho) && (desiredRho >= curState[Rho][iLeft][j]))
-            )
+            double Dl = curState[Rho][iLeft-1][j];
+            double Dr = curState[Rho][iLeft][j];
+            int Check1 = ( Dl<=desiredRho && desiredRho<=Dr );
+            int Check2 = ( Dl>=desiredRho && desiredRho>=Dr );
+            if(Check1 || Check2)
             {
                 iLast = iLeft;
-
-                double Dl = curState[Rho][iLeft-1][j];
-                double Dr = curState[Rho][iLeft][j];
                 double m = DeltaR/(Dr-Dl);
-                curCont = cPos(iLeft,DeltaR) + m*(desiredRho-Dl);
-                cout << "Contour location for j=" << j << " is " << curCont << endl;
-
+                curCont = cPos(iLeft-1,DeltaR) + m*(desiredRho-Dl);
+                //cout << "Contour location for j=" << j << " is " << curCont << endl;
                 if(type) VContour[j] = curCont;
                 break;
             }
-            // look right
-            else if( ((curState[Rho][iRight-1][j] <= desiredRho) && (desiredRho <= curState[Rho][iRight][j]))
-                || ((curState[Rho][iRight-1][j] >= desiredRho) && (desiredRho >= curState[Rho][iRight][j]))
-            )
+
+            // else look right
+            Dl = curState[Rho][iRight-1][j];
+            Dr = curState[Rho][iRight][j];
+            Check1 = ( Dl<=desiredRho && desiredRho<=Dr );
+            Check2 = ( Dl>=desiredRho && desiredRho>=Dr );
+
+            if( Check1 || Check2 )
             {
                 iLast = iRight;
-
-                double Dl = curState[Rho][iRight-1][j];
-                double Dr = curState[Rho][iRight][j];
                 double m = DeltaR/(Dr-Dl);
-                curCont = cPos(iRight,DeltaR) + m*(desiredRho-Dl);
-                cout << "Contour location for j=" << j << " is " << curCont << endl;
-
+                curCont = cPos(iRight-1,DeltaR) + m*(desiredRho-Dl);
+                //cout << "Contour location for j=" << j << " is " << curCont << endl;
                 if(type) VContour[j] = curCont;
                 break;
             }
 
             // If here, didn't find it
-            if(iLeft==1 && iRight==M-2)
+            if(iLeft==1 && iRight==M-1)
             {
                 cout << "Did not find the density value!" << endl;
                 exit(1);
@@ -254,56 +347,97 @@ double FindContRatio(double topRad, int type)
     }
 
     double rat = 0;
-    if(curCont!=0) rat = fabs(topRad/curCont);
+    if(curCont!=0) rat = topRad/curCont;
+    //cout << "Contour ratio is = " << rat << endl;
 
     return rat;
 }
 
 
 // Given a new Q and V, calculate the new rho
-int UpdateRho()
+int UpdateRho(int type)
 {
     int success=0;
-
     int i,j;
+
+    if(type)
+    {
+        success=1;
+
+        // We know where the contour is
+        for(i=0;i<M;i++)for(j=0;j<N;j++)
+        {
+            if(cPos(i,DeltaR)>VContour[j]) curState[Rho][i][j] = 0;
+        }
+
+        return success;
+    }
+
+
     for(i=0;i<M;i++) for(j=0;j<N;j++)
     {
-        curState[Rho][i][j] = curState[Q][i][j]*exp(-curState[Vpot][i][j]);
+        if(j==N-1) curState[Rho][i][j] = RhoTop[i]; // top row is always the cylinder
+        else curState[Rho][i][j] = curState[Q][i][j]*exp(-curState[Vpot][i][j]); // everywhere else uses the Q update
     }
+
+    if(contR==1) return 1;
 
     // Now find the contour that has ratio rCont
     // Need to find the two values of Rho at the top the contour resides between
-    double contLe = 0;
-    double contRi = 0;
-    for(i=1;i<M;i++)
-    {
-        contRi = FindContRatio(cPos(i,DeltaR),0);
-        cout << contRi << " = contRi for i=" << i << endl;
 
-        // Does rCont fall between contR and contL?
+    // which two indices does the current boundary lie between? Gives first guess for where to start
+    i=0; while(true) {i++; if( cPos(i,DeltaR) >= VContour[N-1] ) break;}
+    int iLeft = i; int iRight = i;
+
+    while(true)
+    {
+        // look left
+        double contLe = FindContRatio(cPos(iLeft-1,DeltaR),0);
+        double contRi = FindContRatio(cPos(iLeft,DeltaR),0);
+
+        //cout << "Left(" << iLeft << ") Left and Right Contour Ratios are " << contLe << " and " << contRi << endl;
+
+        // Was it there?
         if( (contLe <= contR && contR <= contRi) || (contLe >= contR && contR >= contRi) )
         {
             // Linearly interpolate to find the exact radius
-            double m = (contRi-contLe)/DeltaR;
-            contRi = FindContRatio( contLe + m*(contR-contRi) , 1 ); // also override VContour with new values
-            cout << "Found a contour with ratio " << contRi << " (wanted contR= " << contR << ")" << endl;
+            double m = DeltaR/(contRi-contLe);
+            double contRadius = cPos(iLeft-1,DeltaR) + m*(contR-contLe); // FindContRatio( contLe + m*(contR-contRi) , 1 ); // also override VContour with new values
+            double contFinal = FindContRatio(contRadius,1); // 1 = Overwrites VContour
+            cout << "Found a contour with radius " << contRadius << " with ratio " << contFinal << " (wanted contR= " << contR << ")" << endl;
             success=1;
-
             break;
         }
 
-        // If not, prepare to start again
-        contLe = contRi;
+        // else look right
+        contLe = FindContRatio(cPos(iRight-1,DeltaR),0);
+        contRi = FindContRatio(cPos(iRight,DeltaR),0);
+        //cout << "Right(" << iRight << "): Left and Right Contour Ratios are " << contLe << " and " << contRi << endl;
 
-        // Fail?
-        if(i==M-1)
+        // Was it there?
+        if( (contLe <= contR && contR <= contRi) || (contLe >= contR && contR >= contRi) )
         {
-            cout << "NEVER FOUND THE CONTOUR!" << endl;
-
+            // Linearly interpolate to find the exact radius
+            double m = DeltaR/(contRi-contLe);
+            double contRadius = cPos(iRight-1,DeltaR) + m*(contR-contLe); // FindContRatio( contLe + m*(contR-contRi) , 1 ); // also override VContour with new values
+            double contFinal = FindContRatio(contRadius,1); // 1 = Overwrites VContour
+            cout << "Found a contour with radius " << contRadius << " with ratio " << contFinal << " (wanted contR= " << contR << ")" << endl;
+            success=1;
+            break;
         }
+
+        // Are we out of options?
+        if(iLeft==1 and iRight==M-1) { cout << "Did not find contour!!!" << endl; break;}
+
+        // else Adjust indices
+        if(iRight < M-1) iRight++;
+        if(iLeft > 1) iLeft--;
+        cout << "New iLeft and iRight are = " << iLeft << " and " << iRight << endl;
     }
 
+    //exit(0);
     return success;
+
 };
 
 

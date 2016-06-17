@@ -7,7 +7,7 @@ int M;
 int N;
 double rRatio;
 double contR;
-double betaInf;
+double beta0;
 double nCyl;
 double lambda;
 
@@ -43,6 +43,7 @@ double ***curState;
 double ***prevState;
 
 /* Other values */
+double Malter=1.0;
 
 /* Unit coversion from parsecs to code length units (G=c_s=rho(top,c)=1) */
 double Pc2Code;
@@ -110,7 +111,7 @@ void ReadArguments(int argc, char *a[])
     zL = atof(a[3]);
     rRatio = atof(a[4]);
     contR = atof(a[5]);
-    betaInf = atof(a[6]);
+    beta0 = atof(a[6]);
     nCyl = atof(a[7]);
     lambda = atof(a[8]);
     if(argc-1==NumArg) ConvergeLoopMax = atoi(a[9]);
@@ -134,10 +135,10 @@ void ReadArguments(int argc, char *a[])
         exit(1);
     }
 
-    if(betaInf < 0 || nCyl < 0.5 || lambda < 0)
+    if(beta0 < 0 || nCyl < 0.5 || lambda < 0)
     {
         WaterlooHeader("ReadArguments");
-        cout << "Your betaInf or nCyl or mass/length values may be unphysical. You provided betaInf, nCyl, lambda = " << betaInf << ", " << nCyl << ", " << lambda << endl;
+        cout << "Your beta0 or nCyl or mass/length values may be unphysical. You provided beta0, nCyl, lambda = " << beta0 << ", " << nCyl << ", " << lambda << endl;
         exit(1);
     }
 
@@ -162,7 +163,7 @@ void PrintArguments(int argc)
     cout << "zL = " << zL << " parsecs" << endl;
     cout << "rRatio = " << rRatio << endl;
     cout << "contR frac = " << contR << endl;
-    cout << "betaInf = " << betaInf << endl;
+    cout << "beta0 = " << beta0 << endl;
     cout << "nCyl = " << nCyl << endl;
     cout << "lambda = " << lambda << endl << endl;
     cout << "Here are your compiler options:" << endl;
@@ -191,7 +192,7 @@ void CalcDerived(int argc)
     DeltaZ = zL / (double(N)-1); // Need the -1 to include the edge as a grid point
 
     // Boundary condition arrays
-    VLeft = new double[N];
+    //VLeft = new double[N];
     VRight = new double[N];
     ALeft = new double[N];
     ARight = new double[N];

@@ -1,4 +1,5 @@
-/* Global Variable Declarations for the Filament Code by Aaron T. Lee
+/*
+   Global Variable Declarations for the Filament Code by Aaron T. Lee
    Project is with Steven Stahler, 2015-2016
 */
 
@@ -25,7 +26,7 @@ extern double rRatio;       // ratio of vertical extent to entire domain's radia
 extern double contR;        // contour ratio (top to bottom); command line input
 
 // Cylinder knobs
-extern double betaInf;      // value of plasma beta in the ambient region; command line input
+extern double beta0;        // value of plasma beta at r=0
 extern double nCyl;         // power index relating rho to B (B prop \rho^n); command line input
 extern double lambda;       // mass/length value (e.g., hydro crit = 2*c^2/G); command line input
 
@@ -46,7 +47,8 @@ extern double *RhoTop;
 extern double totMass;
 
 // Boundary Condition Arrays for values or derivatives
-extern double *VLeft, *VRight;
+//extern double *VLeft;
+extern double *VRight;
 extern double *ALeft, *ARight;
 
 // Global States
@@ -61,6 +63,9 @@ extern double Sol2Code;
 extern double Sol2G;
 extern double Cbackground;
 extern double RhoTopCenter;
+
+// Altered the boundary condition?
+extern double Malter;
 
 
 // Other preprocessors
@@ -268,7 +273,7 @@ inline void PrintState(double ***curState,string divide, string num)
 
     // First print inputs as the first line
     myfile << M << "," << N << "," << zL << "," << rRatio << ","
-        << contR << "," << betaInf << "," << nCyl << ","
+        << contR << "," << beta0 << "," << nCyl << ","
         << Rbdy << "," << lambda << "," << Pc2Code << "," << Sol2Code << endl;
 
     // Print VContour as the second line
@@ -288,6 +293,34 @@ inline void PrintState(double ***curState,string divide, string num)
     myfile.close();
 };
 
+
+// Trap Integral
+inline double TrapInt()
+{
+    double sum=0;
+
+    // finds the largest index
+    int idxMax = 0;
+    int i,j;
+
+    for(j=0;j<N;j++) for(i=0;i<M;i++)
+    {
+        if( cPos(i,DeltaR) >= VContour[j] )
+        {
+            if(i>idxMax) idxMax=i;
+            break;
+        }
+    }
+
+    // Now do a trapezoidal integral out to idxMax
+    sum = cPos(0,DeltaR)*curState[Rho][0][0] + cPos(idxMax,DeltaR)*curState[Rho][idxMax][0] + cPos(0,DeltaR)*curState[Rho][0][N-1] + cPos(idxMax,DeltaR)*curState[Rho][idxMax][N-1]; // corners
+    for(i=1;i<idxMax;i++) sum = sum + 2.0*(cPos(i,DeltaR)*curState[Rho][i][0] + cPos(i,DeltaR)*curState[Rho][i][N-1]); // top and bottom edges
+    for(j=1;j<N-1;j++) sum = sum + 2.0*(cPos(0,DeltaR)*curState[Rho][0][j] + cPos(idxMax,DeltaR)*curState[Rho][idxMax][j]); // left and right edges
+    for(i=1;i<idxMax;i++) for(j=1;j<N-1;j++) sum = sum + 4.0*(cPos(i,DeltaR)*curState[Rho][i][j]); // interiors
+    sum = 4.0*PI*(DeltaR*DeltaZ/4.0)*sum;
+
+    return sum;
+}
 
 // 1D mass tradezoid integral (used for cylinder stuff)
 inline double OneDMassInt(double* Rho, int Midx)
@@ -330,11 +363,24 @@ inline void CalcdQdP()
         double Phiright=0, Phileft=0, Phiup=0, Phidown=0;
         double dQdr=0,dQdz=0,dPdr=0,dPdz=0;
 
+
+
+
         if(Ridx(s)==0) // Left side
         {
-            // Qright-Qleft = 0, similar for Phi
-            dQdr=0;
-            dPdr=0;
+            // We use one-sided derivatives to estimate these quantities.
+            // We are dividing by DeltaR so that it cancels out the DeltaR at the end
+            double Q0 = curState[Q][Ridx(s)][Zidx(s)];
+            double Q1 = curState[Q][Ridx(s)+1][Zidx(s)];
+            double Q2 = curState[Q][Ridx(s)+2][Zidx(s)];
+            double Q3 = curState[Q][Ridx(s)+3][Zidx(s)];
+            double P0 = cPos(Ridx(s),DeltaR)*curState[Apot][Ridx(s)][Zidx(s)]; // = 0
+            double P1 = cPos(Ridx(s)+1,DeltaR)*curState[Apot][Ridx(s)+1][Zidx(s)];
+            double P2 = cPos(Ridx(s)+2,DeltaR)*curState[Apot][Ridx(s)+2][Zidx(s)];
+            double P3 = cPos(Ridx(s)+3,DeltaR)*curState[Apot][Ridx(s)+3][Zidx(s)];
+
+            dQdr=(2*Q0-5*Q1+4*Q2-Q3)/DeltaR;
+            dPdr=(2*P0-5*P1+4*P2-P3)/DeltaR;
         }
         else if(Ridx(s)==M-1) // Right side
         {
@@ -342,11 +388,17 @@ inline void CalcdQdP()
             // specify a value for Q(r+1) and set Q(r-1), where Q(r+1)
             // will estimate (dQ/dr)*DeltaR
 
-            double Qr = curState[Q][Ridx(s)][Zidx(s)] ;
-            double Qrm1 = curState[Q][Ridx(s)-1][Zidx(s)] ;
-            double Qrm2 = curState[Q][Ridx(s)-2][Zidx(s)] ;
-            dQdr = ( 3*Qr - 4*Qrm1 + 1*Qrm2 )/(2*DeltaR);
-            if(cPos(Ridx(s),DeltaR) > VContour[Zidx(s)]) dQdr = 0; // on right side of contour
+            if(cPos(Ridx(s),DeltaR) > VContour[Zidx(s)]) // on right side of contour
+            {
+                dQdr = 0;
+            }
+            else
+            {
+                double Qr = curState[Q][Ridx(s)][Zidx(s)] ;
+                double Qrm1 = curState[Q][Ridx(s)-1][Zidx(s)] ;
+                double Qrm2 = curState[Q][Ridx(s)-2][Zidx(s)] ;
+                dQdr = ( 3*Qr - 4*Qrm1 + 1*Qrm2 )/(2*DeltaR);
+            }
 
             // Phi is done similarly, but dPhi/dr = d(r*A)/dr = A + r*(dA/dr)
             // Phiright will estimate = (dPhi/dr)*DeltaR = A*DeltaR + r*DeltaR*(dA/dr)
@@ -358,7 +410,7 @@ inline void CalcdQdP()
             dPdr = Ar + cPos(Ridx(s),DeltaR)*dAdr;
 
         }
-        else // interior
+        else // r derivatives -- interior
         {
             Qleft = curState[Q][Ridx(s)-1][Zidx(s)];
             Qright = curState[Q][Ridx(s)+1][Zidx(s)];
@@ -368,8 +420,8 @@ inline void CalcdQdP()
             Phiright = cPos(Ridx(s)+1,DeltaR)*curState[Apot][Ridx(s)+1][Zidx(s)];
             dPdr = (Phiright-Phileft)/(2*DeltaR);  // this is true if both points are left of the contour
 
-            if(cPos(Ridx(s),DeltaR) > VContour[Zidx(s)]) dQdr = 0; // cell is right of contour
-            else if( cPos(Ridx(s)+1,DeltaR) > VContour[Zidx(s)] )  // cell is near the contour
+            if(cPos(Ridx(s),DeltaR) >= VContour[Zidx(s)]) dQdr = 0; // cell is right of contour
+            else if( cPos(Ridx(s)+1,DeltaR) >= VContour[Zidx(s)] )  // cell is near the contour
             {
                 // Center difference overlaps the contour. Instead interpolate
 
@@ -384,10 +436,13 @@ inline void CalcdQdP()
                 double dQ = Qbdy - Qleft;
                 dQdr = dQ/dr;
 
+
+
                 // Do the same for Phi
-                Phileft = cPos(Ridx(s),DeltaR)*curState[Apot][Ridx(s)][Zidx(s)];
-                double Pbdy = (1-x)*Phileft + x*Phiright;
-                dPdr = (Pbdy - Phileft)/(VContour[Zidx(s)] - cPos(Ridx(s),DeltaR)) ;
+                Phileft = cPos(Ridx(s)-1,DeltaR)*curState[Apot][Ridx(s)-1][Zidx(s)];
+                double PhiC = cPos(Ridx(s),DeltaR)*curState[Apot][Ridx(s)][Zidx(s)];
+                double Pbdy = (1-x)*PhiC + x*Phiright;
+                dPdr = (Pbdy - Phileft)/(VContour[Zidx(s)] - cPos(Ridx(s)-1,DeltaR)) ;
             }
         }
 
@@ -407,8 +462,8 @@ inline void CalcdQdP()
             Phiup    = cPos(Ridx(s),DeltaR)*curState[Apot][Ridx(s)][Zidx(s)+1];
             dPdz = (Phiup-Phidown)/(2*DeltaZ); // Assumes both points are interior to contour
 
-            if(cPos(Ridx(s),DeltaR) > VContour[Zidx(s)]) dQdz = 0; // point is right of contour
-            else if( cPos(Ridx(s),DeltaR) > VContour[Zidx(s)+1] ) // point is next to contour
+            if(cPos(Ridx(s),DeltaR) >= VContour[Zidx(s)]) dQdz = 0; // point is right of contour
+            else if( cPos(Ridx(s),DeltaR) >= VContour[Zidx(s)+1] ) // point is next to contour
             {
                 // Need z location of contour at cPos(Ridx(s),DeltaR) radius
                 double m = DeltaZ/(VContour[Zidx(s)+1]-VContour[Zidx(s)]);
@@ -441,7 +496,23 @@ inline void CalcdQdP()
         double dQdPhi = 0;
         if(dP!=0) dQdPhi = dQ/dP;
 
-        if(cPos(Zidx(s),DeltaZ) <= VContour[Zidx(s)]) curState[dQdP][Ridx(s)][Zidx(s)] = dQdPhi;
+        if(isnan(dQdPhi))
+        {
+            cout << "dQdPhi has a nan! (i,j)=(" << Ridx(s) << "," << Zidx(s) << ")" << endl;
+            cout << "    dQ = " << dQ << " , dP = " << dP << endl;
+            cout << "    dQdr = " << dQdr << " , dPdr = " << dPdr << endl;
+            cout << "    dQdz = " << dQdz << " , dPdz = " << dPdz << endl;
+            cout << "    cPos = " << cPos(Ridx(s),DeltaR) << " , VCont+1 = " << VContour[Zidx(s)+1] << endl;
+            cout << "    cPos = " << cPos(Ridx(s),DeltaR) << " , VCont = " << VContour[Zidx(s)] << endl;
+            if(cPos(Ridx(s),DeltaR) >= VContour[Zidx(s)+1]) cout << "Near a contour!" << endl;
+            exit(1);
+        }
+
+        //if(isnan(dQdPhi)) dQdPhi = 0;
+
+        //if(Zidx(s)==N-1) cout << dQdPhi << endl;
+
+        if(cPos(Ridx(s),DeltaZ) <= VContour[Zidx(s)]) curState[dQdP][Ridx(s)][Zidx(s)] = dQdPhi;
         //if(dQdPhi > 0.3) cout << "Large derivative! at " << Ridx(s) << " and " << Zidx(s) << "! (" << dQdPhi << ")" << endl;
         else curState[dQdP][Ridx(s)][Zidx(s)] = 0; // dQdPhi should have been set to zero anyway, but just to be safe.
 
@@ -472,13 +543,14 @@ inline void UpdateQ(int type)
         double Rl = RhoTop[i-1];
         double m = (Rr-Rl)/DeltaR;
         Rbdy = Rl + m*(rEdge-cPos(i-1,DeltaR)); // updates global Rbdy
+        cout << "New Rbdy value = " << Rbdy << endl;
 
         for(i=0;i<M;i++) for(j=0;j<N;j++)
         {
             if(cPos(i,DeltaR)>VContour[j]) curState[Q][i][j] = Rbdy;
         }
 
-        return;
+        return; // we don't have to make maps and stuff
     }
 
 
@@ -494,6 +566,9 @@ inline void UpdateQ(int type)
     // Now for every other cell, use map to interpolate a value of Q
     for(i=0;i<M;i++) for(j=0;j<N-1;j++) // skipping the top row
     {
+        // did we succeed?
+        int yay=0;
+
         // Local phi value we want to use with PhiMap and QMap
         double localPhi = cPos(i,DeltaR)*curState[Apot][i][j];
         int idx;
@@ -504,10 +579,10 @@ inline void UpdateQ(int type)
             double Pleft = PhiMap[idx-1]; // cPos(idx-1,DeltaR)*curState[Apot][idx-1][j];
             double Pright= PhiMap[idx];   // cPos(idx,DeltaR)*curState[Apot][idx][j];
 
-            if( (Pleft <= localPhi && localPhi <= Pright) || (Pleft >= localPhi && localPhi >= Pright) ) break;
+            if( (Pleft <= localPhi && localPhi <= Pright) || (Pleft >= localPhi && localPhi >= Pright) ) {yay=1; break;}
         }
 
-        if(idx==M-1)
+        if(idx==M-1 && yay==0)
         {
             cout << "Possibly didn't find a Phi value to interpolate in updateQ (i,j)=(" << i << "," << j <<")" << endl;
             // Possibly didn't find, but we know Phi analytically

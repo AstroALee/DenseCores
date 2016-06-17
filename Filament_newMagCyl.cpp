@@ -12,7 +12,7 @@ struct derivs {
 
         // Fixed parameters?
         double ncst= nCyl;  //0.5;
-        double alp= sqrt(8.0*PI/betaInf); // alp^2 = 8*pi*rho^(1-2n)_intfy / beta_infty
+        double alp= sqrt(8.0*PI/beta0); // alp^2 = 8*pi*rho^(1-2n)_intfy / beta_infty
 
         // Derived quantities
         double a2 = alp*alp;
@@ -65,7 +65,8 @@ void FastMagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
     //Set for particular problem (independent variable = t)
     const int Nvar = 5;
     const double t_start = 0.0; // t here is the radius
-    const double t_end   = 3.0; // this should be large enough so that lambda = desiredLambda somewhere
+    const double t_end   = max(3.0,1.5*rL); // this should be large enough so that lambda = desiredLambda somewhere
+                                            // also should be larger than rL 
 
     //ODE tolerances and such
     const double atol = 1.0e-8;
@@ -97,7 +98,7 @@ void FastMagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
 
     //for(int i=0;i<out.count;i++) cout << "output " << i << " : " << out.ysave[4][i] << endl;
     // What is the r where lambda=desiredLambda?
-    rEdge = LIntY(out.xsave, out.ysave, desiredLambda, out.count, 4); // 4 = lambda
+    rEdge = LIntY(out.xsave, out.ysave, desiredLambda, out.count, 4); // 4 = lambda, returns radius
     cout << "Value of rEdge is " << rEdge << endl;
 
     if(dooutput==2)
@@ -136,7 +137,7 @@ void MagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
 
     double rhoNG;
     // old:: new (first) guess (drawn from averages of typical cases)
-    //if(betaInf < 0.5) rhoNG = 4.0;  // 'intuition'
+    //if(beta0 < 0.5) rhoNG = 4.0;  // 'intuition'
     //else rhoNG = 1.21;
     rhoNG = 1.0;
 
@@ -244,7 +245,7 @@ void NewUseOutput(Output out, double rEdge)
     int i,j;
 
     // Rho at top edge
-    double RTop = LInt(out.xsave,out.ysave,rEdge,out.count,0); // Rho
+    double RTopEdge = LInt(out.xsave,out.ysave,rEdge,out.count,0); // Rho
 
     // Outside the filament, we use the analytic form for the potential
     double VEdge = LInt(out.xsave,out.ysave,rEdge,out.count,1); // Vpot
@@ -279,7 +280,7 @@ void NewUseOutput(Output out, double rEdge)
             curState[Vpot][i][j] = Ccst[0]*log(rPos/rEdge)+Ccst[1] ;
 
             // Analytic form for A*r outside cylinder = Cst*ln() + 0.5*Binf*(r^2-Redge^2)
-            double Binf = sqrt(8.0*PI*RTop/betaInf);
+            double Binf = sqrt(8.0*PI/beta0)*pow(RTopEdge,nCyl);
             double Acyl = LInt(out.xsave,out.ysave,rEdge,out.count,3) + 0.5*Binf*( pow(rPos,2) - pow(rEdge,2) );
             Acyl = Acyl/rPos;
             curState[Apot][i][j] = Acyl;
@@ -367,7 +368,7 @@ void UseOutput(Output out,double rEdge)
             curState[Vpot][i][j] = Ccst[0]*log(rPos/rEdge)+Ccst[1] ;
 
             // Analytic form for A*r outside cylinder = Cst*ln() + 0.5*Binf*(r^2-Redge^2)
-            double Binf = sqrt(8.0*PI/betaInf);
+            double Binf = sqrt(8.0*PI/beta0); // assumes rho(edge)=1
             double Acyl = LInt(out.xsave,out.ysave,rEdge,out.count,3) + 0.5*Binf*( pow(rPos,2) - pow(rEdge,2) );
             Acyl = Acyl/rPos;
             curState[Apot][i][j] = Acyl;
