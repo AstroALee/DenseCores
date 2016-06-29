@@ -55,6 +55,33 @@ void PrepareInitialState()
         CodeHeader("Adding ball");
         BallDensity(mPoints);
     }
+    else
+    {
+        // Add a ball to get corner density to be rhoC
+        double DeltaRho = rhoC - curState[Rho][0][0];
+        double ballRad = VContour[0]/1.5;
+
+        int i,j;
+        for(i=0;i<M;i++) for(j=0;j<N;j++)
+        {
+            double r = cPos(i,DeltaR), z = cPos(j,DeltaZ);
+            double curRad = pow(r*r+z*z,0.5);
+            if(curRad <= ballRad) curState[Rho][i][j] = curState[Rho][i][j] + DeltaR;
+        }
+
+        double ballMass = DeltaRho*(4./3.)*PI*pow(ballRad,3);
+        if(ballMass <= 2.0*zL*lambda)
+        {
+            mPoints = ballMass;
+            mCylGuess = 2.0*zL*lambda - ballMass;
+        }
+        else
+        {
+            mPoints = zL*lambda;
+            mCylGuess = zL*lambda;
+        }
+
+    }
 
     // With density and contour determined, we can determine the remaining quantities for integration
 
@@ -89,7 +116,7 @@ void BallDensity(double mPoints)
     double drag = pow(CYLINDERRADRAT,2);
     double eta = 1.0-contR;
     double ballRad = ((1/pow(drag,2) + pow(eta/drag/drag,2))/pow(1+pow(eta/drag,2),2))*VContour[0];
-    cout << "Maximum radius for ball is " << ballRad/VContour[0] << " times the radiu of the filament" << endl;
+    cout << "Maximum radius for ball is " << ballRad/VContour[0] << " times the radius of the filament" << endl;
     for(int i=0;i<M;i++) for(int j=0;j<N;j++)
     {
         double r = cPos(i,DeltaR), z = cPos(j,DeltaZ);
@@ -97,6 +124,7 @@ void BallDensity(double mPoints)
         double ballDen = 3*mPoints/PI/pow(ballRad,3); //15.0*mPoints/8/PI/pow(ballRad,3); // quadratic   3*mPoints/PI/pow(ballRad,3); // linear
         if(rad<=ballRad) curState[Rho][i][j] = ballDen*(1.0-pow(rad/ballRad,1)) + curState[Rho][i][j];
     }
+
 }
 
 void BaselineCylinder(int idx)

@@ -29,7 +29,7 @@ OUTPUTNAME = FilamentCode
 
 all: Filament_Main
 
-Filament_Main : Filament_Main.o Filament_PrepInit.o Filament_SolveAll.o Filament_newMagCyl.o Filament_Poisson.o Filament_Ampere.o
+Filament_Main : Filament_Main.o Filament_PrepInit.o Filament_newSolveAll.o Filament_newMagCyl.o Filament_Poisson.o Filament_Ampere.o
 	$(GCC) $(CPPFLAGS) -o $(OUTPUTNAME) $^
 	rm ./*.o
 

@@ -33,7 +33,9 @@ void Converge()
         UpdateQ(0);
 
         // Update Rho
-        int success=UpdateRho(0);
+        int success=0;
+        //success = UpdateRho(0);
+        success = 1;
 
         if(success)
         {
@@ -69,6 +71,7 @@ void Converge()
 
 
     }
+    UpdateQ(0);
 
 };
 
@@ -126,8 +129,8 @@ void UpdateBC(int type)
         }
 
         // Over-rides
-        Medgecy = 0*2*zL*lambda;
-        Mexcess = 1*2*zL*lambda;
+        Medgecy = 0.50*2*zL*lambda;
+        Mexcess = 0.50*2*zL*lambda;
 
         // Boundary conditions will use Mexcess for the points and totMass - Mexcess for the cylinder
         double CyldVdr = Medgecy/zL/rL;

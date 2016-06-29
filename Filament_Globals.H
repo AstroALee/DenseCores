@@ -29,6 +29,7 @@ extern double contR;        // contour ratio (top to bottom); command line input
 extern double beta0;        // value of plasma beta at r=0
 extern double nCyl;         // power index relating rho to B (B prop \rho^n); command line input
 extern double lambda;       // mass/length value (e.g., hydro crit = 2*c^2/G); command line input
+extern double rhoC;         // non-dim central density (must be > 1); command line input
 
 // Global Derived Values
 extern double zL;           // Vertical length of the box, input is in parsecs; command line input

@@ -43,14 +43,34 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
 
     int s;
 
+    int sMax = 0;
+    double RhoMax = 0;
+
     // First, the source vector :  4*pi*dr^2*rho = 4*pi*dr^2*Q*exp(-V)
     for(s=0;s<M*N;s++)
     {
         if( cPos(Ridx(s),DeltaR) <= VContour[Zidx(s)] )  // In the filament
-            Source(s) = 4.0*PI*pow(DeltaR,2)*curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]);
+        {
+            if(s==0)
+            {
+                Source(s) = log(1./rhoC);
+                cout << "Corner Potential value is being set to " << log(1./rhoC) << endl;
+            }
+            else
+            {
+                //Source(s) = 4.0*PI*pow(DeltaR,2)*curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]);
+                Source(s) = 4.0*PI*pow(DeltaR,2)*curState[Rho][Ridx(s)][Zidx(s)];
+                //cout << "Rho test:  Rho = " << curState[Rho][Ridx(s)][Zidx(s)] << " q e^-V = " << curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]) << endl;
+                if(fabs(curState[Rho][Ridx(s)][Zidx(s)]-curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]))>RhoMax) {sMax = s; RhoMax = fabs(curState[Rho][Ridx(s)][Zidx(s)]-curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]));}
+            }
+        }
         else                                            // Outside the filament, rho = 0
             Source(s) = 0.0;
     }
+
+    cout << "sMax is = " << sMax << " or (r,z)=" << Ridx(sMax) << " , " << Zidx(sMax) << endl;
+    cout << "Where Delta Rho = " << RhoMax << endl;
+    cout << "Rho = " << curState[Rho][Ridx(s)][Zidx(s)] << " and qexpV = " << curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]) << endl;
 
     // Second, loop through and fill up the finite difference matrix
     for(s=0;s<M*N;s++)
@@ -115,6 +135,16 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
             PoMatrix(s,s-2) = 1; // Need two neighbor points to the left
             Source(s) = 6.0*DeltaR*VRight[Zidx(s)];
 
+        }
+
+        if(s==0)
+        {
+            Mcenter = 1;
+            Mleft = 0;
+            Mright = 0;
+            Mup = 0;
+            Mdown = 0;
+            PoMatrix(s,Sidx(0,N-1)) = -1;
         }
 
         // Now we fill the entries of the matrix with the values

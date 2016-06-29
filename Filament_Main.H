@@ -10,6 +10,7 @@ double contR;
 double beta0;
 double nCyl;
 double lambda;
+double rhoC;
 
 /* Declaration of global derived quantities */
 double zL,rL;
@@ -27,7 +28,7 @@ double *RhoTop;
 double totMass = -1;
 
 /* Number of arguments - 1 that are expected */
-int NumArg = 9;
+int NumArg = 10;
 
 /* Ambient background */
 double RhoTopCenter = 0; // must be determined by inputs
@@ -114,7 +115,8 @@ void ReadArguments(int argc, char *a[])
     beta0 = atof(a[6]);
     nCyl = atof(a[7]);
     lambda = atof(a[8]);
-    if(argc-1==NumArg) ConvergeLoopMax = atoi(a[9]);
+    rhoC = atof(a[9]);
+    if(argc-1==NumArg) ConvergeLoopMax = atoi(a[10]);
 
 
 
@@ -127,7 +129,7 @@ void ReadArguments(int argc, char *a[])
         exit(1);
     }
 
-    if(zL < 0 || rRatio < 1 || contR < 0 || contR > 1)
+    if(zL < 0 || rRatio < 1 || contR < 0)
     {
         WaterlooHeader("ReadArguments");
         cout << "Some values of zL, rRatio, or contR are weird. You provided zL, rRatio, contR = " << zL << ", " << rRatio << ", " << contR << endl;
@@ -135,10 +137,10 @@ void ReadArguments(int argc, char *a[])
         exit(1);
     }
 
-    if(beta0 < 0 || nCyl < 0.5 || lambda < 0)
+    if(beta0 < 0 || nCyl < 0.5 || lambda < 0 || rhoC < 1)
     {
         WaterlooHeader("ReadArguments");
-        cout << "Your beta0 or nCyl or mass/length values may be unphysical. You provided beta0, nCyl, lambda = " << beta0 << ", " << nCyl << ", " << lambda << endl;
+        cout << "Your beta0 or nCyl, rhoC, or mass/length values may be unphysical. You provided beta0, nCyl, lambda, rhoC = " << beta0 << ", " << nCyl << ", " << lambda << " , " << rhoC << endl;
         exit(1);
     }
 
@@ -165,7 +167,8 @@ void PrintArguments(int argc)
     cout << "contR frac = " << contR << endl;
     cout << "beta0 = " << beta0 << endl;
     cout << "nCyl = " << nCyl << endl;
-    cout << "lambda = " << lambda << endl << endl;
+    cout << "lambda = " << lambda << endl;
+    cout << "rhoC = " << rhoC << endl << endl;
     cout << "Here are your compiler options:" << endl;
     cout << "DEBUG = " << DEBUG << endl;
     cout << "LOOPMAX = " << LOOPMAX << endl;

@@ -5,7 +5,6 @@ void RelaxSoln();
 void UpdateBdy();
 void NewVBdy();
 int UpdateRho(int i);
-void CalcdQdP();
 void UpdateBC(int i);
 
 void ConvergeTest(int l, int& done);
