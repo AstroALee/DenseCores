@@ -8,5 +8,6 @@ eigen/
 *.txt
 a.out
 *out
+*pyc
 out
 DenseCoreCode
