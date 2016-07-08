@@ -5,6 +5,36 @@
 using namespace Eigen;
 
 void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source);
+void createPertPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source);
+
+void SolvePertPoisson(double** deltaV)
+{
+    int i,j;
+
+    // First allocate the matrix and vectors for the finite difference scheme, source, and solution
+    MatrixXd PoMatrix = MatrixXd::Zero((M)*(N),(M)*(N));
+    VectorXd Source = VectorXd::Zero((M)*(N));
+    VectorXd Soln = VectorXd::Zero((M)*(N));
+
+    // The finite difference scheme is applied
+    createPoissonMatrix(PoMatrix,Source);
+
+    // Now call LinAlgebra package to invert the matrix and obtain the new potential values
+    //Soln = PoMatrix.householderQr().solve(Source);
+    //Soln = PoMatrix.colPivHouseholderQr().solve(Source);
+    Soln = PoMatrix.colPivHouseholderQr().solve(Source);
+
+    // Test to make sure solution is actually a solution (Uses L2 norm)
+    double L2error = (PoMatrix*Soln - Source).norm() / Source.norm();
+    cout << "Gravity Matrix L2 error = " << L2error << endl;
+
+    //cout << (PoMatrix*Soln - Source) << endl;
+
+    // Copy the solution to the newState vector
+    for(i=0;i<M;i++) for(j=0;j<N;j++) deltaV[i][j] = Soln[ Sidx(i,j) ];
+
+
+}
 
 void SolvePoisson()
 {
@@ -54,23 +84,23 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
             if(s==0)
             {
                 Source(s) = log(1./rhoC);
-                cout << "Corner Potential value is being set to " << log(1./rhoC) << endl;
+                //cout << "Corner Potential value is being set to " << log(1./rhoC) << endl;
             }
             else
             {
                 //Source(s) = 4.0*PI*pow(DeltaR,2)*curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]);
                 Source(s) = 4.0*PI*pow(DeltaR,2)*curState[Rho][Ridx(s)][Zidx(s)];
                 //cout << "Rho test:  Rho = " << curState[Rho][Ridx(s)][Zidx(s)] << " q e^-V = " << curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]) << endl;
-                if(fabs(curState[Rho][Ridx(s)][Zidx(s)]-curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]))>RhoMax) {sMax = s; RhoMax = fabs(curState[Rho][Ridx(s)][Zidx(s)]-curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]));}
+                //if(fabs(curState[Rho][Ridx(s)][Zidx(s)]-curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]))>RhoMax) {sMax = s; RhoMax = fabs(curState[Rho][Ridx(s)][Zidx(s)]-curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]));}
             }
         }
         else                                            // Outside the filament, rho = 0
             Source(s) = 0.0;
     }
 
-    cout << "sMax is = " << sMax << " or (r,z)=" << Ridx(sMax) << " , " << Zidx(sMax) << endl;
-    cout << "Where Delta Rho = " << RhoMax << endl;
-    cout << "Rho = " << curState[Rho][Ridx(s)][Zidx(s)] << " and qexpV = " << curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]) << endl;
+    //cout << "sMax is = " << sMax << " or (r,z)=" << Ridx(sMax) << " , " << Zidx(sMax) << endl;
+    //cout << "Where Delta Rho = " << RhoMax << endl;
+    //cout << "Rho = " << curState[Rho][Ridx(s)][Zidx(s)] << " and qexpV = " << curState[Q][Ridx(s)][Zidx(s)]*exp(-curState[Vpot][Ridx(s)][Zidx(s)]) << endl;
 
     // Second, loop through and fill up the finite difference matrix
     for(s=0;s<M*N;s++)
@@ -141,10 +171,13 @@ void createPoissonMatrix(MatrixXd& PoMatrix, VectorXd& Source)
         {
             Mcenter = 1;
             Mleft = 0;
-            Mright = 0;
-            Mup = 0;
+            Mright = 0; //1;
+            Mup = 0; //0.5*pow(f,2);
             Mdown = 0;
-            PoMatrix(s,Sidx(0,N-1)) = -1;
+            PoMatrix(s,Sidx(0,N-1)) = -1; //-(1+0.5*pow(f,2)) ;
+            Source(s) = log(1.0/rhoC); //PI*pow(DeltaR,2)*rhoC + (1+0.5*pow(f,2))*log(1.0/rhoC);
+
+
         }
 
         // Now we fill the entries of the matrix with the values

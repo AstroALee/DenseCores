@@ -8,19 +8,19 @@ void SolveAmpere();
 
 void Converge()
 {
+    int i;
+    int j;
 
     int done = 0;
     int dummy = 0;
 
     // Outermost Loop -- Seeks convergence in V, A, Q, and Rho
-    int i;
     for(i=0;i<ConvergeLoopMax;i++)
     {
         cout << endl << "Outer loop: Beginning iteration " << i << endl;
 
         // Inner loop -- Seeks convergence in V, A, Q, fixes Rho
-        int j;
-        for(j=0;j<ConvergeLoopMax;j++)
+        for(j=0;j<10;j++)
         {
             cout << endl << "Inner loop: Beginning iteration " << j << endl;
 
@@ -38,7 +38,7 @@ void Converge()
 
             // Update Q via mapping
             UpdateQ(0);
-            //UpdateQ(1);
+            UpdateQ(1);
 
             // After this inner loop, we keep Rho fixed
             // and return to solving Poisson and Ampere
@@ -46,15 +46,17 @@ void Converge()
 
         } // end innermost loop
 
-        //NewUpdateRho(0);
-
-
-        if(UpdateRho(0)) dummy=UpdateRho(1);
-        else { cout << "Did not find contour!" << endl; }
+        //UpdateQ(0);
+        // Update rho everywhere
+        NewUpdateRho(0);
+        // Updates boundary location
+        NewRhoBdy();
+        // Truncate after filament boundary
+        NewUpdateRho(1);
+        // Determine new boundary condition
+        NewBdyCond();
+        // Truncate Q left of filament boundary
         UpdateQ(1);
-
-        // debug
-        //break;
 
         if(ConvergeTest(i,2)) { cout << "Converged in Rho! Breaking out." << endl; break; }
 
@@ -178,6 +180,43 @@ int ConvergeTest(int loopnum,int type)
     return done;
 };
 
+void NewBdyCond()
+{
+    // Updates boundary condition (VRight)
+    int i,j;
+
+    //zeros
+    for(j=0;j<N;j++) VRight[j] = 0;
+
+    // Adds cylinder component (mass is always 2*z*Lambda)
+    for(j=0;j<N;j++) VRight[j] = (2.0*zL*lambda)/zL/rL;
+
+    // Computes total mass in box
+    double Mbox = TrapInt();
+    cout << "Mbox = " << Mbox << " (2zLambda = " << 2*zL*lambda << ")" << endl;
+    if(Mbox < 2*zL*lambda) { cout <<" Something has gone wrong!" << endl; exit(1); }
+    double mPoints = Mbox - 2*zL*lambda;
+
+    // Now adds in point masses dVdr = G*mPoints/Rad^2 (same number of points as in initial conditions)
+    // Potential grad from point masses
+    double zP=0;
+    cout << "Max points = " << PointLoopMax << endl;
+    for(i=0;i<=PointLoopMax;i++)
+    {
+        //if(DEBUG==2 || Mcode==0) break;
+        int j;
+        for(j=0;j<N;j++)
+        {
+            double X1 = sqrt( pow(cPos(M-1,DeltaR),2) + pow(cPos(j,DeltaZ)-zP,2) );
+            double X2 = sqrt( pow(cPos(M-1,DeltaR),2) + pow(cPos(j,DeltaZ)+zP,2) );
+
+            VRight[j] = VRight[j] + mPoints/pow(X1,2);
+            if(zP>0) VRight[j] = VRight[j] + mPoints/pow(X2,2);
+        }
+        zP = zP + 2.0*zL;
+    }
+
+};
 
 void NewUpdateRho(int type)
 {
@@ -193,43 +232,78 @@ void NewUpdateRho(int type)
         return;
     }
 
-
-    // Use the new V and Q to get a new rho everywhere
-    for(i=0;i<M;i++) for(j=0;j<N;j++)
+    // Use new Q and V to update Rho
+    for(i=0;i<M;i++)for(j=0;j<N;j++)
     {
-        if(j==N-1) curState[Rho][i][j] = RhoTop[i]; // top row is always the cylinder
-        else curState[Rho][i][j] = curState[Q][i][j]*exp(-curState[Vpot][i][j]); // everywhere else uses the Q update
+        curState[Rho][i][j] = curState[Q][i][j]*exp(-curState[Vpot][i][j]);
     }
 
-    // Find the density contour the encloses the right amount of mass.
-    double tempCont[N];
+};
 
-    double prevMass = 0, currMass = 0;
-    // Find the contour that starts at a partiular top location.
-    for(i=1;i<M;i++)
+void NewRhoBdy()
+{
+    // Given that rho has been updated, find the filament boundary
+
+    // The radius at the top does not change
+    double curRad = VContour[N-1];
+    // Interpolate to find new rho value there.
+    int i=0; while(true){ i++; if(cPos(i,DeltaR)>=curRad) break;}
+    double rRight = curState[Rho][i][N-1];
+    double rLeft  = curState[Rho][i-1][N-1];
+    double m = (rRight-rLeft)/DeltaR;
+    double wantRho = rLeft + m*(curRad-cPos(i-1,DeltaR));
+    cout << "Desired rho contour has rho = " << wantRho << endl;
+
+    // Now find where wantRho is located for each row beneath.
+    int iLast = i;
+    for(int j=N-2;j>=0;j--)
     {
-        // Find the contour the starts at cPos(i)
-        findDenCont(tempCont,cPos(i,DeltaR),0);
-        // Given this contour, find the mass enclosed
-        currMass = findMass(tempCont);
-        // As i increases, mass will increase. Have we enclosed the right amount of mass?
-        if(currMass >= 2.0*zL*lambda)
+        //cout << "New boundary location for j = " << j << endl;
+        int iLeft = iLast, iRight = iLast;
+
+        while(true)
         {
-            // The right amount of mass is somewhere between i and i-1
-            // Linearly interpolate to get the guess for the top radius
-            double m = DeltaR/(currMass-prevMass);
-            double rightRad = cPos(i-1,DeltaR) + m*(2.0*zL*lambda - prevMass);
-            // This is the contour we want.
-            findDenCont(tempCont,rightRad,0);
-            // Save in our permanent array.
-            for(j=0;j<N;j++) VContour[j] = tempCont[j];
-            break;
+            // Start at iLast and search around there for the contour (in case rho is not monotonic)
+
+
+            // Look left
+            rRight = curState[Rho][iLeft][j];
+            rLeft  = curState[Rho][iLeft-1][j];
+            if( (rLeft <= wantRho && wantRho <= rRight) || (rLeft >= wantRho && wantRho >= rRight) )
+            {
+                // Found it. Interpolate to get radius
+                m = DeltaR/(rRight-rLeft);
+                VContour[j] = cPos(iLeft-1,DeltaR) + m*(wantRho-rLeft);
+                iLast = iLeft;
+                //cout << "Found contour left (iLast = " << iLast << ")" << endl;
+                break;
+            }
+
+            // Look right
+            rRight = curState[Rho][iRight][j];
+            rLeft  = curState[Rho][iRight-1][j];
+            if( (rLeft <= wantRho && wantRho <= rRight) || (rLeft >= wantRho && wantRho >= rRight) )
+            {
+                // Found it. Interpolate to get radius
+                m = DeltaR/(rRight-rLeft);
+                VContour[j] = cPos(iRight-1,DeltaR) + m*(wantRho-rLeft);
+                iLast = iRight;
+                //cout << "Found contour right (iLast = " << iLast << ")" << endl;
+                break;
+            }
+
+            // Did not find it for this value of i.
+            if(iLeft==1 && iRight==M-1)
+            {
+                cout << "Did not find the rho contour!!" << endl;
+                exit(1);
+            }
+
+            if(iLeft>1) iLeft--;
+            if(iRight<M-1) iRight++;
+
         }
-        else
-        {
-            // Not enough mass yet. Need to keep going
-            prevMass = currMass;
-        }
+
     }
 
 };

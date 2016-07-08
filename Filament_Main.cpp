@@ -11,7 +11,7 @@ void Converge();
 int main(int argc, char *argv[])
 {
     // Set precision (give me all the numbers)
-    cout << std::setprecision(16) ;
+    cout << std::setprecision(16);
 
     // Start the clock
     clock_t startTime = clock();

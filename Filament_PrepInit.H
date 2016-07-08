@@ -9,6 +9,7 @@ double WFunc(double A,double r, double z)
 };
 
 void PrepareInitialState();
+void PrepareInitialState_old();
 void InitCylinder();
 void InitPoints(double m);
 void detDVDR(double m);
@@ -22,3 +23,4 @@ void StretchRho();
 void BallDensity(double m);
 double reduceCyl(double x);
 double MassInt(double A);
+void NewBall();

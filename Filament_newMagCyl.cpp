@@ -66,7 +66,7 @@ void FastMagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
     const int Nvar = 5;
     const double t_start = 0.0; // t here is the radius
     const double t_end   = max(3.0,1.5*rL); // this should be large enough so that lambda = desiredLambda somewhere
-                                            // also should be larger than rL 
+                                            // also should be larger than rL
 
     //ODE tolerances and such
     const double atol = 1.0e-8;
@@ -110,7 +110,7 @@ void FastMagnetizedCylinder(double& rEdge, double desiredLambda, int dooutput)
         // The cylinder solution is good to go.
         for(int i=0 ; i<M; i++) RhoTop[i] = LInt(out.xsave,out.ysave,cPos(i,DeltaR),out.count,0); // 0 = Rho
         for(int i=0 ; i<M; i++) cout << "RhoTop(" << i << ")=" << RhoTop[i] << endl;
-        for(int i=0 ; i<M; i++) cout << "Lambda(" << i << ")=" << LInt(out.xsave,out.ysave,cPos(i,DeltaR),out.count,4) << endl;
+        //for(int i=0 ; i<M; i++) cout << "Lambda(" << i << ")=" << LInt(out.xsave,out.ysave,cPos(i,DeltaR),out.count,4) << endl;
     }
 
 
@@ -263,6 +263,9 @@ void NewUseOutput(Output out, double rEdge)
 
     for(i=0;i<M;i++) for(j=0;j<N;j++)
     {
+        // Assign Rho
+        curState[Rho][i][j] = RhoTop[i];
+
         double rPos = cPos(i,DeltaR);
         double zPos = cPos(j,DeltaZ);
 
@@ -276,6 +279,9 @@ void NewUseOutput(Output out, double rEdge)
         }
         else
         {
+            // Rho is zero
+            curState[Rho][i][j] = 0.0;
+            
             // Analytic form for V
             curState[Vpot][i][j] = Ccst[0]*log(rPos/rEdge)+Ccst[1] ;
 

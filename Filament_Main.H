@@ -28,7 +28,7 @@ double *RhoTop;
 double totMass = -1;
 
 /* Number of arguments - 1 that are expected */
-int NumArg = 10;
+int NumArg = 9;
 
 /* Ambient background */
 double RhoTopCenter = 0; // must be determined by inputs
@@ -97,7 +97,7 @@ void CheckArguments(int a)
     {
         WaterlooHeader("CheckArguments");
         cout << "You didn't provide the right number of arguments. You need eight or nine." << endl;
-        cout << "(M,N,z-length (pc), Ratio r-length to z-length, Contour Ratio, beta_inf, n, non-dim mass/length, (loopmax; opt))" << endl;
+        cout << "(M,N,z-length (pc), Ratio r-length to z-length, rhoC (nondim), beta_inf, n, non-dim mass/length, (loopmax; opt))" << endl;
         cout << "You provided " << a-1 << " argument" << Plural(a-1,"s") << "." << endl;
         exit(1);
     }
@@ -111,12 +111,14 @@ void ReadArguments(int argc, char *a[])
     N = atoi(a[2]);
     zL = atof(a[3]);
     rRatio = atof(a[4]);
-    contR = atof(a[5]);
+    rhoC = atof(a[5]);
+    //contR = atof(a[5]);
     beta0 = atof(a[6]);
     nCyl = atof(a[7]);
     lambda = atof(a[8]);
-    rhoC = atof(a[9]);
-    if(argc-1==NumArg) ConvergeLoopMax = atoi(a[10]);
+    if(argc-1==NumArg) ConvergeLoopMax = atoi(a[9]);
+
+    contR = 1.0;
 
 
 
@@ -164,7 +166,7 @@ void PrintArguments(int argc)
     cout << "N = " << N << endl;
     cout << "zL = " << zL << " parsecs" << endl;
     cout << "rRatio = " << rRatio << endl;
-    cout << "contR frac = " << contR << endl;
+    //cout << "contR frac = " << contR << endl;
     cout << "beta0 = " << beta0 << endl;
     cout << "nCyl = " << nCyl << endl;
     cout << "lambda = " << lambda << endl;

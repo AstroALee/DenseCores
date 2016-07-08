@@ -4,8 +4,66 @@
 void MagnetizedCylinder(double& Redge, double desiredLambda, int i);
 void FastMagnetizedCylinder(double& Redge, double desiredLambda, int i);
 
-
 void PrepareInitialState()
+{
+    // We will always have a baseline cylinder with lambda equal to the user input value
+    CodeHeader("Cylinder Integration to get units");
+    BaselineCylinder(0);
+    // Given now that we know quantities of the background cylinder, we can evaluate the 'units'
+    UnitConvert(); // Sets DeltaR, DeltaZ, zL and rL.
+    BaselineCylinder(1); // Sets RhoTop, VContour_init
+    BaselineCylinder(2); // Sets V and A and rho from cylinder
+
+    // Now we have the cylinder determined.
+    // Let's adjust density so the corner density is correct,
+    // Also track total mass added for boundary condition.
+    NewBall();
+
+    // Adds on Vpot from a chain of point masses
+    CodeHeader("Determining Point Mass Potential");
+    double mPoints = TrapInt() - 2*zL*lambda;
+    InitPoints(mPoints);
+
+    // We know the full initial potential. Get boundary conditions
+    CodeHeader("Determining dVdR at the right edge");
+    detDVDR(mPoints);
+
+    // With V and rho known everywhere, Q is easy
+    CodeHeader("Initializing Q");
+    //InitQ();
+    UpdateQ(0);
+    UpdateQ(1);
+
+    // Initial dQdPhi
+    CodeHeader("Getting the first dQdPhi");
+    CalcdQdP();
+
+    cout << "End of initial conditions" << endl;
+}
+
+void NewBall()
+{
+    double DeltaRho = rhoC - curState[Rho][0][0]; // Need to add this to the region around 0,0
+
+    int i,j;
+    for(i=0;i<M;i++) for(j=0;j<N;j++)
+    {
+        double r = cPos(i,DeltaR), z = cPos(j,DeltaZ);
+        double rad = pow(r*r+z*z,0.5);
+
+        double ballRad = min(zL/1.1 , VContour[0]/1.1);
+
+        if(rad <= ballRad )
+        {
+            double wgt = (1.0 - rad/ballRad);
+            curState[Rho][i][j] = curState[Rho][i][j] + wgt*DeltaRho;
+        }
+
+    }
+
+}
+
+void PrepareInitialState_old()
 {
     // Calculate the baseline cylinder (what would be if mExcess = 0)
     CodeHeader("Baseline Magnetized Cylinder integrations");

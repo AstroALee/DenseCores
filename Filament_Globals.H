@@ -313,6 +313,8 @@ inline double TrapInt()
         }
     }
 
+    idxMax = M-1;
+
     // Now do a trapezoidal integral out to idxMax
     sum = cPos(0,DeltaR)*curState[Rho][0][0] + cPos(idxMax,DeltaR)*curState[Rho][idxMax][0] + cPos(0,DeltaR)*curState[Rho][0][N-1] + cPos(idxMax,DeltaR)*curState[Rho][idxMax][N-1]; // corners
     for(i=1;i<idxMax;i++) sum = sum + 2.0*(cPos(i,DeltaR)*curState[Rho][i][0] + cPos(i,DeltaR)*curState[Rho][i][N-1]); // top and bottom edges
@@ -532,6 +534,8 @@ inline void CalcdQdP()
 // cells to this value (=rho)
 inline void UpdateQ(int type)
 {
+    cout << "Updating Q (type =" << type << ")" << endl;
+
     int i,j;
 
     if(type==1) // we know where the new boundary is and Rho has been updated
