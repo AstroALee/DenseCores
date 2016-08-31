@@ -1,5 +1,6 @@
 # Imports
 import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 from numpy import *
 import scipy as spi
@@ -61,6 +62,7 @@ if(idx==-1):
     exit(1)
 if(len(sys.argv)<5):
     print "Not enough inputs"
+    print "python contour.py field unitsYN LogYN #cont BfieldYN #lines"
     exit(1)
 
 
@@ -89,7 +91,7 @@ RMesh, ZMesh = meshgrid(arange(M)*DeltaR,arange(N)*DeltaZ)
 # THIS IS WHAT IS PLOTTED
 if(idx==8): PlotMe = multiply(Rpos,data[5,:]) # Phi = r*A
 else: PlotMe = data[idx,:]
-PreparedPlot = PlotMe.reshape(M,N).T  # Need the transpose (.T)
+PreparedPlot = PlotMe.reshape(int(M),int(N)).T  # Need the transpose (.T)
 
 
 # PlotMe may be a derived quantity, here are some values

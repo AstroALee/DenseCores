@@ -13,6 +13,10 @@
 #include <math.h>
 #include <time.h>
 
+
+extern double testCst;
+extern double mPrevious;
+extern double mCurrent;
 // The code will assume that c_s = G = P_ambient = 1
 
 // Constants (wrap in parentheses to avoid subtle arithmetic issues)
@@ -23,7 +27,7 @@
 extern int M;               // grid poitns in radial direciton; command line input
 extern int N;               // grid points in veritcal direction; command line input
 extern double rRatio;       // ratio of vertical extent to entire domain's radial extent (not just cylinder radius; compiler input)
-extern double contR;        // contour ratio (top to bottom); command line input
+extern double mEx;          // Mass excess value from command line
 
 // Cylinder knobs
 extern double beta0;        // value of plasma beta at r=0
@@ -222,6 +226,22 @@ inline double LIntY(double* Yarray, double x, double Delta, int size, int& lastI
     return value;
 };
 
+inline void CalcRho()
+{
+    int i,j;
+    for(i=0;i<M;i++) for(j=0;j<N;j++)
+    {
+        if( cPos(i,DeltaR) < VContour[j] )
+        {
+            curState[Rho][i][j] = curState[Q][i][j]*exp(-curState[Vpot][i][j]);
+        }
+        else
+        {
+            curState[Rho][i][j] = 0.0;
+        }
+    }
+};
+
 // Given a Yarray Y and a particular y value, finds the x such Y(x)=y
 inline double LIntX(double* Yarray, double y, double Delta, int size)
 {
@@ -274,7 +294,7 @@ inline void PrintState(double ***curState,string divide, string num)
 
     // First print inputs as the first line
     myfile << M << "," << N << "," << zL << "," << rRatio << ","
-        << contR << "," << beta0 << "," << nCyl << ","
+        << mEx << "," << beta0 << "," << nCyl << ","
         << Rbdy << "," << lambda << "," << Pc2Code << "," << Sol2Code << endl;
 
     // Print VContour as the second line
@@ -359,10 +379,19 @@ inline void CalcdQdP()
     // left has reflective
     // right will utilize a three stencil estimate for the derivative
 
+
+    // find Q at filament boundary
+    int i=0; while(true){ i++; if(cPos(i,DeltaR)>=VContour[N-1]) break;}
+    double Qright=curState[Q][i][N-1];
+    double Qleft=curState[Q][i-1][N-1];
+    double m = (Qright-Qleft)/DeltaR;
+    double Qedge = Qleft + m*( VContour[N-1] - cPos(i,DeltaR) );
+
     int s;
     for(s=0;s<M*N;s++)
     {
-        double Qright=0, Qleft=0, Qup=0, Qdown=0;
+        Qright = 0; Qleft = 0;
+        double Qup=0, Qdown=0;
         double Phiright=0, Phileft=0, Phiup=0, Phidown=0;
         double dQdr=0,dQdz=0,dPdr=0,dPdz=0;
 
@@ -429,14 +458,14 @@ inline void CalcdQdP()
                 // Center difference overlaps the contour. Instead interpolate
 
                 // Need the value of Q at the contour: We need the value of V at the contour
-                double Vr = curState[Vpot][1+Ridx(s)][Zidx(s)];
-                double Vl = curState[Vpot][Ridx(s)][Zidx(s)];
+                //double Vr = curState[Vpot][1+Ridx(s)][Zidx(s)];
+                //double Vl = curState[Vpot][Ridx(s)][Zidx(s)];
                 double x  = (VContour[Zidx(s)] - cPos(Ridx(s),DeltaR))/(DeltaR);
-                double Vbdy = (1-x)*Vl + x*Vr;
-                double Qbdy = Rbdy * exp(Vbdy);
+                //double Vbdy = (1-x)*Vl + x*Vr;
+                //double Qbdy = Rbdy * exp(Vbdy);
 
                 double dr = (VContour[Zidx(s)] - cPos(Ridx(s)-1,DeltaR)) ;
-                double dQ = Qbdy - Qleft;
+                double dQ = Qedge - Qleft;
                 dQdr = dQ/dr;
 
 
@@ -534,9 +563,17 @@ inline void CalcdQdP()
 // cells to this value (=rho)
 inline void UpdateQ(int type)
 {
-    cout << "Updating Q (type =" << type << ")" << endl;
+    cout << "Updating Q (type=" << type << ")" << endl;
 
     int i,j;
+
+    for(i=1;i<M-1;i++) { if(cPos(i,DeltaR)>VContour[N-1]) break;}
+    double Rr = RhoTop[i];
+    double Rl = RhoTop[i-1];
+    double m2 = (Rr-Rl)/DeltaR;
+    Rbdy = Rl + m2*(VContour[N-1]-cPos(i-1,DeltaR)); // updates global Rbdy
+    cout << "New Rbdy value = " << Rbdy << endl; // shouldn't ever change...
+
 
     if(type==1) // we know where the new boundary is and Rho has been updated
     {
@@ -558,12 +595,19 @@ inline void UpdateQ(int type)
         return; // we don't have to make maps and stuff
     }
 
-
     // Make map
     double PhiMap[M];
     double QMap[M];
     for(i=0;i<M;i++) PhiMap[i] = cPos(i,DeltaR)*curState[Apot][i][N-1]; // Phi at top
     for(i=0;i<M;i++)   QMap[i] = RhoTop[i] * exp( curState[Vpot][i][N-1] ); // Q at top using RhoTop
+
+    // What is Q at the filament boundary?
+    i=0; while(true){ i++; if(cPos(i,DeltaR)>=VContour[N-1]) break; }
+    double m = ( QMap[i] - QMap[i-1] )/DeltaR;
+    double Qedge = QMap[i-1] + m*(VContour[N-1] - cPos(i-1,DeltaR));
+
+    // Beyond the boundary, we use this Q value.
+    for(i=0;i<M;i++) if(cPos(i,DeltaR)>=VContour[N-1]) QMap[i] = Qedge;
 
     // Top row is done
     for(i=0;i<M;i++) curState[Q][i][N-1] = QMap[i];
@@ -571,6 +615,9 @@ inline void UpdateQ(int type)
     // Now for every other cell, use map to interpolate a value of Q
     for(i=0;i<M;i++) for(j=0;j<N-1;j++) // skipping the top row
     {
+        // If right of the contour, who cares
+        if(cPos(i,DeltaR) >= VContour[j]){ curState[Q][i][j]=Qedge; continue; }
+
         // did we succeed?
         int yay=0;
 
@@ -601,7 +648,12 @@ inline void UpdateQ(int type)
         double x2 = PhiMap[idx];   //cPos(idx,DeltaR)*curState[Apot][idx][j];
         double m = (y2-y1)/(x2-x1);
         curState[Q][i][j] = y1 + m*(localPhi-x1);
-    }
 
+        if(isnan(curState[Q][i][j]))
+        {
+            cout << "Q has a nan! (i,j) = (" << i << "," << j << ")" << endl;
+            exit(1);
+        }
+    }
 
 };

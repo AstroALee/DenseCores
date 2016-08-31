@@ -246,6 +246,7 @@ void NewUseOutput(Output out, double rEdge)
 
     // Rho at top edge
     double RTopEdge = LInt(out.xsave,out.ysave,rEdge,out.count,0); // Rho
+    Rbdy = RTopEdge; 
 
     // Outside the filament, we use the analytic form for the potential
     double VEdge = LInt(out.xsave,out.ysave,rEdge,out.count,1); // Vpot
@@ -281,7 +282,7 @@ void NewUseOutput(Output out, double rEdge)
         {
             // Rho is zero
             curState[Rho][i][j] = 0.0;
-            
+
             // Analytic form for V
             curState[Vpot][i][j] = Ccst[0]*log(rPos/rEdge)+Ccst[1] ;
 

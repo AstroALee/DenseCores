@@ -9,30 +9,34 @@ void PrepareInitialState()
     // We will always have a baseline cylinder with lambda equal to the user input value
     CodeHeader("Cylinder Integration to get units");
     BaselineCylinder(0);
+
     // Given now that we know quantities of the background cylinder, we can evaluate the 'units'
     UnitConvert(); // Sets DeltaR, DeltaZ, zL and rL.
     BaselineCylinder(1); // Sets RhoTop, VContour_init
     BaselineCylinder(2); // Sets V and A and rho from cylinder
 
-    // Now we have the cylinder determined.
-    // Let's adjust density so the corner density is correct,
-    // Also track total mass added for boundary condition.
-    NewBall();
+    // Given a value of mEx, we can set up the V contribution from the point masses
+    InitPoints(mEx);
 
-    // Adds on Vpot from a chain of point masses
-    CodeHeader("Determining Point Mass Potential");
-    double mPoints = TrapInt() - 2*zL*lambda;
-    InitPoints(mPoints);
+    // Now we determine the filament boundary, which will never change.
+    getVbdy();
 
     // We know the full initial potential. Get boundary conditions
     CodeHeader("Determining dVdR at the right edge");
-    detDVDR(mPoints);
+    detDVDR(mEx);
+
+    // Stretch current density distribution so that the filament boundary is a rho contour
+    stretchRho();
+
+    // Also, the boundary has possibly changed. Get rid of the rho beyond.
+    truncateRho();
+
+    // New ball
+    NewBall(mEx);
 
     // With V and rho known everywhere, Q is easy
     CodeHeader("Initializing Q");
-    //InitQ();
     UpdateQ(0);
-    UpdateQ(1);
 
     // Initial dQdPhi
     CodeHeader("Getting the first dQdPhi");
@@ -41,26 +45,34 @@ void PrepareInitialState()
     cout << "End of initial conditions" << endl;
 }
 
-void NewBall()
+void truncateRho()
 {
-    double DeltaRho = rhoC - curState[Rho][0][0]; // Need to add this to the region around 0,0
-
     int i,j;
     for(i=0;i<M;i++) for(j=0;j<N;j++)
     {
-        double r = cPos(i,DeltaR), z = cPos(j,DeltaZ);
-        double rad = pow(r*r+z*z,0.5);
-
-        double ballRad = min(zL/1.1 , VContour[0]/1.1);
-
-        if(rad <= ballRad )
-        {
-            double wgt = (1.0 - rad/ballRad);
-            curState[Rho][i][j] = curState[Rho][i][j] + wgt*DeltaRho;
-        }
-
+        if(cPos(i,DeltaR) > VContour[j]) curState[Rho][i][j] = 0;
     }
+}
 
+void NewBall(double mTot)
+{
+    int i,j;
+
+    // Adds a ball with mTot mass to the box
+
+    // Radius of ball
+    double ballRad = rL;
+    i=0; for(i=0;i<N;i++) { if(VContour[i]<ballRad) ballRad = VContour[i]; }
+    ballRad = ballRad/1.2;
+
+
+    double rho0 = 15.0*mTot/8.0/PI/pow(ballRad,3);
+
+    for(i=0;i<M;i++) for(j=0;j<N;j++)
+    {
+        double rad = sqrt( pow(cPos(i,DeltaR),2) + pow(cPos(j,DeltaR),2) );
+        if(rad < ballRad) curState[Rho][i][j] = curState[Rho][i][j] + rho0*(1.0-pow(rad/ballRad,2));
+    }
 }
 
 void PrepareInitialState_old()
@@ -84,13 +96,14 @@ void PrepareInitialState_old()
     // Rho is then the top values stretched out toward the boundary for each row.
     // Sets Rho for everywhere in the box, also sets value of Rbdy = Rho at contour
     CodeHeader("Stretching Density");
-    StretchRho();
+    StretchRho_old();
 
     // Now the boundary is a rho contour, but we've introduced a lot of extra mass in the process
     // We want the total mass to be equal to the mass of the lambda = desiredLambda cylinder.
     // We actually want to remove more so to set up a centrally concentrated density
     // We will remove mass so this central concentration has mass (1-contR)*Mass(Lambda=desiredLambda)
     // Doing so will mean the 'cylinder' will have a mass contR*Mass(Lambda=desiredLambda)
+    double contR = 0.8;
     double mCylGuess = contR*(2.0*zL*lambda);
     double mPoints   = (1-contR)*(2.0*zL*lambda);
 
@@ -115,8 +128,9 @@ void PrepareInitialState_old()
     }
     else
     {
-        // Add a ball to get corner density to be rhoC
-        double DeltaRho = rhoC - curState[Rho][0][0];
+        // Add a ball to get corner density to be rhoCmeh
+        double rhoCmeh = 1.1;
+        double DeltaRho = rhoCmeh - curState[Rho][0][0];
         double ballRad = VContour[0]/1.5;
 
         int i,j;
@@ -169,8 +183,17 @@ void PrepareInitialState_old()
 
 };
 
+void BallExcess(double m)
+{
+    // input the total mass we want inside the filament.
+
+    //
+
+}
+
 void BallDensity(double mPoints)
 {
+    double contR = 0.8;
     double drag = pow(CYLINDERRADRAT,2);
     double eta = 1.0-contR;
     double ballRad = ((1/pow(drag,2) + pow(eta/drag/drag,2))/pow(1+pow(eta/drag,2),2))*VContour[0];
@@ -206,7 +229,7 @@ void InitCylinder()
     // Initialize Potentials from Cylinder
 
     double Redge=0; // don't actually need
-    FastMagnetizedCylinder(Redge,contR*lambda,2); // 2 = populate curState
+    FastMagnetizedCylinder(Redge,1*lambda,2); // 2 = populate curState
 
 };
 
@@ -249,7 +272,7 @@ void InitPoints(double mPoints)
             if(zP==0)
             {
                 // (GM/X blows up, use a softening parameter)
-                double Xsoft = zL/2.0; //1.0*sqrt(pow(DeltaR,2)+pow(DeltaZ,2));
+                double Xsoft = zL/10.0; //1.0*sqrt(pow(DeltaR,2)+pow(DeltaZ,2));
                 X1 = X1 + Xsoft;
             }
 
@@ -292,7 +315,7 @@ void InitPoints(double mPoints)
             exit(1);
         }
 
-    }
+    } // end of while loop
 
     // If we're here, we have converged.
     // Normalize so that the upper-left corner has Vpot=0
@@ -350,6 +373,37 @@ void detDVDR(double mPoints)
     cout << endl;
 
 };
+
+void getVbdy()
+{
+    // Given V everywhre, find the V contour that goes through the lambda='2' filament boundary at the top
+
+    // radius of filament
+    double Vloc = VContour[N-1];
+
+    // What is V at this location?
+    int i=0; while(true){ i++; if(cPos(i,DeltaR)>=Vloc) break; }
+    double Vr = curState[Vpot][i][N-1];
+    double Vl = curState[Vpot][i-1][N-1];
+    double m = (Vr-Vl)/DeltaR;
+    double desV = Vl + m*(Vloc-cPos(i-1,DeltaR));
+    cout << "Desired V value is " << desV << endl;
+    cout << "V radius at " << N-1 << " is " << VContour[N-1] << endl;
+
+    // Now for all other rows, find the radius where V = desV
+    // Assumes that V monotonically increases as i increases (monotonic for each row)
+    for(int j=N-2;j>=0;j--)
+    {
+        i=0;
+        while(true) { i++; if(curState[Vpot][i][j]>=desV) break; }
+        Vr = curState[Vpot][i][j];
+        Vl = curState[Vpot][i-1][j];
+        m = DeltaR/(Vr-Vl);
+        VContour[j] = cPos(i-1,DeltaR) + m*(desV-Vl); // overwrites VContour
+        cout << "V radius at " << j << " is " << VContour[j] << endl;
+    }
+
+}
 
 void getRbdy()
 {
@@ -499,7 +553,42 @@ void firstRbdy()
 
 };
 
-void StretchRho()
+void stretchRho()
+{
+    double contTop = VContour[N-1];
+
+    // find rho at top contour location (desRho)
+    int i=0; while(true){ i++; if(cPos(i,DeltaR)>=contTop) break;}
+    double dR = curState[Rho][i][N-1];
+    double dL = curState[Rho][i-1][N-1];
+    double  m = (dR-dL)/DeltaR;
+    double desRho = dL + m*(contTop-cPos(i-1,DeltaR));
+
+    // Stretch density at every row so that rho = desRho at the filament boundary
+    for(int j=0;j<N-1;j++) // skip top, already done
+    {
+        double locCont = VContour[j];
+        double ratio   = contTop/locCont;
+
+        for(i=0;i<M;i++)
+        {
+            // we don't care about rho beyond the contour
+            if(cPos(i,DeltaR) > locCont) break;
+
+            // Adjusted radius from solution we will put in this cell
+            double radAdj = cPos(i,DeltaR)*ratio;
+
+            // Interpolate RhoTop to get density there
+            int k=0; while(true){ k++; if(cPos(k,DeltaR)>=radAdj) break;}
+            dR = RhoTop[k]; dL = RhoTop[k-1]; m = (dR-dL)/DeltaR;
+            curState[Rho][i][j] = dL + m*(radAdj-cPos(k-1,DeltaR));
+        }
+
+    }
+
+}
+
+void StretchRho_old()
 {
     //if(contR==1) return;
 

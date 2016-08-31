@@ -5,7 +5,7 @@
 
 
 void PrepareInitialState();
-void Converge();
+void ConvergeNew();
 
 
 int main(int argc, char *argv[])
@@ -47,11 +47,14 @@ int main(int argc, char *argv[])
 
     // Enter the Solving Routine
     CodeHeader("Convergence Loop");
-    Converge();
+    ConvergeNew();
 
     // Calculate the total mass
     //CodeHeader("Calculating Final Masses");
     //CalcMass();
+
+    // We haven't been updating Rho. Let's do that now
+    CalcRho();
 
     // Print the final state
     PrintState(curState,".","out");
@@ -68,4 +71,4 @@ int main(int argc, char *argv[])
     // See ya!
     CodeHeader("Goodbye!");
     return 0;
-}
+};

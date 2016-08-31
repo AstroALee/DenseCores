@@ -6,11 +6,14 @@
 int M;
 int N;
 double rRatio;
-double contR;
+double mEx;
 double beta0;
 double nCyl;
 double lambda;
-double rhoC;
+
+double testCst = 0.25;
+double mPrevious = 1;
+double mCurrent = 1;
 
 /* Declaration of global derived quantities */
 double zL,rL;
@@ -97,7 +100,7 @@ void CheckArguments(int a)
     {
         WaterlooHeader("CheckArguments");
         cout << "You didn't provide the right number of arguments. You need eight or nine." << endl;
-        cout << "(M,N,z-length (pc), Ratio r-length to z-length, rhoC (nondim), beta_inf, n, non-dim mass/length, (loopmax; opt))" << endl;
+        cout << "(M,N,z-length (pc), Ratio r-length to z-length, mass excess (nondim), beta_inf, n, non-dim mass/length, (loopmax; opt))" << endl;
         cout << "You provided " << a-1 << " argument" << Plural(a-1,"s") << "." << endl;
         exit(1);
     }
@@ -111,14 +114,11 @@ void ReadArguments(int argc, char *a[])
     N = atoi(a[2]);
     zL = atof(a[3]);
     rRatio = atof(a[4]);
-    rhoC = atof(a[5]);
-    //contR = atof(a[5]);
+    mEx = atof(a[5]);
     beta0 = atof(a[6]);
     nCyl = atof(a[7]);
     lambda = atof(a[8]);
     if(argc-1==NumArg) ConvergeLoopMax = atoi(a[9]);
-
-    contR = 1.0;
 
 
 
@@ -131,18 +131,18 @@ void ReadArguments(int argc, char *a[])
         exit(1);
     }
 
-    if(zL < 0 || rRatio < 1 || contR < 0)
+    if(zL < 0 || rRatio < 1 || mEx < 0)
     {
         WaterlooHeader("ReadArguments");
-        cout << "Some values of zL, rRatio, or contR are weird. You provided zL, rRatio, contR = " << zL << ", " << rRatio << ", " << contR << endl;
+        cout << "Some values of zL, rRatio, or mEx are weird. You provided zL, rRatio, mEx = " << zL << ", " << rRatio << ", " << mEx << endl;
         cout << "For example, the code assumes that edge of the filament is at most at the edge of the box (requires rRatio >= 1)" << endl;
         exit(1);
     }
 
-    if(beta0 < 0 || nCyl < 0.5 || lambda < 0 || rhoC < 1)
+    if(beta0 < 0 || nCyl < 0.5 || lambda < 0 )
     {
         WaterlooHeader("ReadArguments");
-        cout << "Your beta0 or nCyl, rhoC, or mass/length values may be unphysical. You provided beta0, nCyl, lambda, rhoC = " << beta0 << ", " << nCyl << ", " << lambda << " , " << rhoC << endl;
+        cout << "Your beta0 or nCyl, or mass/length values may be unphysical. You provided beta0, nCyl, lambda = " << beta0 << ", " << nCyl << ", " << lambda << endl;
         exit(1);
     }
 
@@ -166,11 +166,10 @@ void PrintArguments(int argc)
     cout << "N = " << N << endl;
     cout << "zL = " << zL << " parsecs" << endl;
     cout << "rRatio = " << rRatio << endl;
-    //cout << "contR frac = " << contR << endl;
     cout << "beta0 = " << beta0 << endl;
     cout << "nCyl = " << nCyl << endl;
     cout << "lambda = " << lambda << endl;
-    cout << "rhoC = " << rhoC << endl << endl;
+    cout << "mEx = " << mEx << endl << endl;
     cout << "Here are your compiler options:" << endl;
     cout << "DEBUG = " << DEBUG << endl;
     cout << "LOOPMAX = " << LOOPMAX << endl;
@@ -233,7 +232,13 @@ void AllocateState(double ***&State)
 
 void DeallocateState(double ***&State)
 {
-    delete[] State; // not sure if this is what I want it to to do...
+    for(int i=0;i<NStates;i++) for(int j=0;j<M;j++) delete[] State[i][j]; // no more columns
+
+    for(int i=0;i<NStates;i++) delete[] State[i]; // no more rows
+
+    delete[] State; // no more state
+
+    State = 0; // good practice.
 };
 
 

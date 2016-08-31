@@ -2,9 +2,163 @@
 
 // Functions from other files
 void SolvePoisson();
+void SolvePertPoisson(double** dv);
 void SolveAmpere();
 
 
+void ConvergeNew()
+{
+    return;
+    
+    mCurrent = TrapInt();
+    cout << "Mass in the box before initial updates = " << mCurrent << endl;
+
+    int i=0;
+    int j,k;
+    // Initially the potentially likely does not jive with the density structure
+    // Solve Poisson for the given density distribution
+
+    for(i=0;i<2;i++) SingleUpdate();
+
+    mPrevious = TrapInt(); // mCurrent;
+    cout << "Mass in the box after single updates = " << mPrevious << endl;
+
+    mCurrent = 1.1*TrapInt();
+
+    // Boundary conditions and filament boundary do not change.
+
+    // Now solve perturbation Poisson to gradually change V to match Q
+
+    double** delVmat; // two *'s = 2D array
+    delVmat = new double *[M]; // now we have rows
+    for(int iii=0; iii< M; iii++) delVmat[iii] = new double [N]; // now we have columns
+    cout << "delVmat matrix allocated" << endl << endl;
+
+    for(i=0;i<ConvergeLoopMax;i++)
+    {
+        cout << endl << "Converge Loop: Beginning iteration " << i << endl;
+
+        // Solve Perturb Poisson -- solution stored in newState
+        double thresh = 0.50;
+        double blend = 0.75;
+        int pertInt = 0;
+        while(true)
+        {
+            int debug =0;
+
+            cout << "---- Perturb Poisson Solve (number " << pertInt << ")" << endl;
+            SolvePertPoisson(delVmat);
+
+            // Is max(delVmat) < thresh? If so, done.
+            if( getMaxDV(delVmat,debug) <= thresh )
+            {
+                //cout << "Pert Poisson solve using dm = " << mCurrent - mPrevious << endl;
+                testCst = testCst/1.5;
+
+                // This deltaV works, add to solution
+                cout << "Adding answer to solution "  << endl;
+                for(int j=0;j<M;j++) for(int k=0;k<N;k++) newState[Vpot][j][k] = curState[Vpot][j][k] + delVmat[j][k];
+                break;
+            }
+            else
+            {
+                // Blend the current state back with the previous state
+                cout << "Blending Solution " << endl;
+                for( j=0;j<M;j++) for( k=0;k<N;k++) curState[Vpot][j][k] = blend*curState[Vpot][j][k] + (1.0-blend)*prevState[Vpot][j][k];
+                for( j=0;j<M;j++) for( k=0;k<N;k++) curState[Apot][j][k] = blend*curState[Apot][j][k] + (1.0-blend)*prevState[Apot][j][k];
+
+                cout << "---- Perturb Q Update" << endl;
+                UpdateQ(0);
+                CalcdQdP();
+
+                // Though we don't need it for calculations , let's update Rho
+                CalcRho();
+
+                // Only need to update current mass, previous remains.
+                mCurrent = TrapInt();
+
+                // We'll try again, but if it fails we will do the above blend again,
+                // which relaxes curState back to prevState even more
+            }
+
+            pertInt++;
+
+        }
+
+        // If we are here, we have succeeded in perturbing Poisson
+        // Update A, curState, prevState, and start again (if not converged)
+
+        // Solve Ampere -- solution stored in newState
+        cout << "---- Ampere Solve" << endl;
+        SolveAmpere();
+
+        // About to use new solution to relax, make data in curState the prevState
+        cout << "---- State Copy And Relax" << endl;
+        CopyState(curState,prevState);
+
+        // Relax V and A using newState and prevState, use this to recalc Q
+        // Updates curState
+        RelaxSoln();
+
+        // Update Q via mapping using new curState
+        cout << "---- Q Update" << endl;
+        UpdateQ(0);
+        CalcdQdP();
+
+        // Let's update Rho
+        CalcRho();
+        mPrevious = mCurrent;
+        mCurrent = TrapInt();
+        cout << "mPrevious = " << mPrevious << endl;
+        cout << "mCurrent  = " << mCurrent << endl;
+
+        // Have we converged?
+        if(ConvergeTest(i,1)) { cout << "Converged! Breaking out." << endl; break; }
+
+    }
+
+    // We're nearly done with everything, but good coding says I should deallocate
+
+    for(int iii=0;iii<M;iii++) delete[] delVmat[iii]; // no more columns
+    delete[] delVmat; // no more rows
+    delVmat = 0; // good practice
+    cout << "delVmat matrix de-allocated" << endl;
+
+
+    // One more pass through the original solvers should not change the answer, right?
+    //cout << endl << "Final Single Update" << endl;
+    //CalcRho();
+    //SingleUpdate();
+
+};
+
+void SingleUpdate()
+{
+    // Solve Poisson -- solution stored in newState
+    cout << "---- Poisson Solve" << endl;
+    SolvePoisson();
+
+    // Solve Ampere -- solution stored in newState
+    cout << "---- Ampere Solve" << endl;
+    SolveAmpere();
+
+    // About to use new solution to relax, make data in curState the prevState
+    cout << "---- State Copy And Relax" << endl;
+    CopyState(curState,prevState);
+
+    // Relax V and A using newState and prevState, use this to recalc boundary, Q, and Rho
+    RelaxSoln();
+
+    // Update Q based on the new values for V
+    cout << "---- Q Update" << endl;
+    UpdateQ(0);
+    CalcdQdP();
+
+    // Though we don't need it for calculations , let's update Rho
+    CalcRho();
+
+    cout << endl;
+}
 
 void Converge()
 {
@@ -65,6 +219,29 @@ void Converge()
 
 };
 
+double getMaxDV(double **dv, int debug)
+{
+    if(debug==1) return 0;
+
+    int i,j;
+    double maxDV = 0;
+
+    for(i=0;i<M;i++) for(j=0;j<N;j++)
+    {
+        double locDV = fabs(dv[i][j]);
+        if(locDV > maxDV)
+        {
+            //cout << "i,j = " << i << "," << j << " -- " << locDV << endl;
+            maxDV = locDV;
+        }
+        //cout << "i,j = " << i << "," << j << " -- " << locDV << endl;
+    }
+
+    cout << "Maximum DV is " << maxDV << endl;
+
+    return maxDV;
+}
+
 // Relax your newState
 void RelaxSoln()
 {
@@ -88,10 +265,11 @@ int ConvergeTest(int loopnum,int type)
 
     double errV=0, errA=0, errR=0;
 
-    int i,j;
-    int Vi,Vj,Ai,Aj;
+    int i=0,j=0;
+    int Vi=0,Vj=0,Ai=0,Aj=0;
 
-    if(type==1) {
+    if(type==1)
+    {
 
     for(i=0;i<M;i++) for(j=0;j<N;j++)
     {
@@ -374,6 +552,8 @@ double findMass(double *rhoContour)
 // Given a new Q and V, calculate the new rho
 int UpdateRho(int type)
 {
+        double contR = 1;
+
     int success=0;
     int i,j;
 
@@ -396,6 +576,7 @@ int UpdateRho(int type)
         if(j==N-1) curState[Rho][i][j] = RhoTop[i]; // top row is always the cylinder
         else curState[Rho][i][j] = curState[Q][i][j]*exp(-curState[Vpot][i][j]); // everywhere else uses the Q update
     }
+
 
     if(contR==1) return 1;
 
