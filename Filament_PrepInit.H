@@ -28,3 +28,4 @@ void BallExcess(double m);
 double reduceCyl(double x);
 double MassInt(double A);
 void NewBall(double m);
+void SoftPotential();

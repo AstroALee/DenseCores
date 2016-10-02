@@ -21,6 +21,13 @@ void PrepareInitialState()
     // Now we determine the filament boundary, which will never change.
     getVbdy();
 
+    InitPoints(-mEx);
+
+    // renormalize
+    double Vnorm = curState[Vpot][0][N-1];
+    for(int i=0;i<M;i++) for(int j=0;j<N;j++) curState[Vpot][i][j] = curState[Vpot][i][j] - Vnorm;
+    SoftPotential();
+
     // We know the full initial potential. Get boundary conditions
     CodeHeader("Determining dVdR at the right edge");
     detDVDR(mEx);
@@ -32,7 +39,7 @@ void PrepareInitialState()
     truncateRho();
 
     // New ball
-    NewBall(mEx);
+    //NewBall(mEx);
 
     // With V and rho known everywhere, Q is easy
     CodeHeader("Initializing Q");
@@ -238,7 +245,8 @@ void InitPoints(double mPoints)
 {
 
     // If there's an excess mass, impose the point potential
-    if(mPoints <=0 || DEBUG==1) return;
+    //if(mPoints <=0 || DEBUG==1) return;
+    if( DEBUG==1) return;
 
     // Array for the point mass chain
     double PointV[M][N];
@@ -272,7 +280,7 @@ void InitPoints(double mPoints)
             if(zP==0)
             {
                 // (GM/X blows up, use a softening parameter)
-                double Xsoft = zL/10.0; //1.0*sqrt(pow(DeltaR,2)+pow(DeltaZ,2));
+                double Xsoft = zL/12.0; //1.0*sqrt(pow(DeltaR,2)+pow(DeltaZ,2));
                 X1 = X1 + Xsoft;
             }
 
@@ -374,6 +382,36 @@ void detDVDR(double mPoints)
 
 };
 
+void SoftPotential()
+{
+    // Makes sure the VContour boundary still has the value VbdyVal after we subtracted out the points
+    // Adds to each line the value necssary to do this, but will adjust so the upper left
+    // remains unchanged
+
+    // Currently V = 0 in upper-left, want to maintain that.
+
+    for(int j=0;j<N;j++)
+    {
+        // Find the current VContour value
+        double locRad = VContour[j];
+        int i=0;
+        while(true){i++; if( cPos(i,DeltaR) >= locRad) break;}
+        double x = (locRad - cPos(i-1,DeltaR))/DeltaR;
+        double VrowVal = x*curState[Vpot][i][j] + (1-x)*curState[Vpot][i-1][j];
+        double Vchange = VbdyVal - VrowVal;
+
+        for(i=0;i<M;i++)
+        {
+            double AdjFac = cPos(i,DeltaR)/locRad; //1.0 - ((fabs(cPos(i,DeltaR) - locRad)/locRad)*(cPos(j,DeltaZ)/zL));
+            curState[Vpot][i][j] = curState[Vpot][i][j] + AdjFac*Vchange;
+        }
+    }
+
+    // Need the upper left to be zero, but if we substract out a constant everywhere,
+    // then we will change the boundary value.
+
+};
+
 void getVbdy()
 {
     // Given V everywhre, find the V contour that goes through the lambda='2' filament boundary at the top
@@ -388,6 +426,9 @@ void getVbdy()
     double m = (Vr-Vl)/DeltaR;
     double desV = Vl + m*(Vloc-cPos(i-1,DeltaR));
     cout << "Desired V value is " << desV << endl;
+
+    VbdyVal = desV;
+
     cout << "V radius at " << N-1 << " is " << VContour[N-1] << endl;
 
     // Now for all other rows, find the radius where V = desV

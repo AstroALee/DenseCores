@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     // Check to make sure your arguments are good
     // If so, read them in
     CheckArguments(argc);
-    ReadArguments(argc,argv);
+    ReadArguments(argc,argv); 
 
     // Welcome message
     WelcomeMessage();

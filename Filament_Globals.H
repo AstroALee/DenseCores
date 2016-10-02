@@ -44,6 +44,7 @@ extern double DeltaZ;       // cell size in vertical direction; derived
 // (exact) Filament Boundary and Rho value
 extern double *VContour;
 extern double Rbdy;
+extern double VbdyVal;
 
 // Rho at the top boundary
 extern double *RhoTop;

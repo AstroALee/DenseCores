@@ -8,8 +8,8 @@ void SolveAmpere();
 
 void ConvergeNew()
 {
-    return;
-    
+    if(ConvergeLoopMax==0) return;
+
     mCurrent = TrapInt();
     cout << "Mass in the box before initial updates = " << mCurrent << endl;
 
@@ -18,14 +18,35 @@ void ConvergeNew()
     // Initially the potentially likely does not jive with the density structure
     // Solve Poisson for the given density distribution
 
-    for(i=0;i<2;i++) SingleUpdate();
+    for(i=0;i<1;i++) SingleUpdate();
+
+    //return;
 
     mPrevious = TrapInt(); // mCurrent;
     cout << "Mass in the box after single updates = " << mPrevious << endl;
 
-    mCurrent = 1.1*TrapInt();
+    mCurrent = 1.0*TrapInt();
 
     // Boundary conditions and filament boundary do not change.
+
+
+    // Debug, manually change V to test perturbation Poisson solve
+    if(1)
+    {
+        for(i=0;i<M;i++) for(j=0;j<N;j++)
+        {
+            double zFac = (zL - cPos(j,DeltaZ))/zL;
+            double rFac = ( cPos(i,DeltaR) / VContour[j] ) * ( 1 - cPos(i,DeltaR)/VContour[j] );
+            double Amp = 1.0;
+
+            if(cPos(i,DeltaR) >= VContour[j]) Amp = 0;
+
+            curState[Vpot][i][j] += Amp*rFac*zFac;
+        }
+
+        //return;
+    }
+
 
     // Now solve perturbation Poisson to gradually change V to match Q
 
@@ -48,6 +69,8 @@ void ConvergeNew()
 
             cout << "---- Perturb Poisson Solve (number " << pertInt << ")" << endl;
             SolvePertPoisson(delVmat);
+            for(j=0;j<M;j++) for(int k=0;k<N;k++) {if(cPos(j,DeltaR) >= VContour[k]) delVmat[j][k]=0;}
+
 
             // Is max(delVmat) < thresh? If so, done.
             if( getMaxDV(delVmat,debug) <= thresh )
@@ -63,7 +86,7 @@ void ConvergeNew()
             else
             {
                 // Blend the current state back with the previous state
-                cout << "Blending Solution " << endl;
+                cout << "Blending Solution Back" << endl;
                 for( j=0;j<M;j++) for( k=0;k<N;k++) curState[Vpot][j][k] = blend*curState[Vpot][j][k] + (1.0-blend)*prevState[Vpot][j][k];
                 for( j=0;j<M;j++) for( k=0;k<N;k++) curState[Apot][j][k] = blend*curState[Apot][j][k] + (1.0-blend)*prevState[Apot][j][k];
 
@@ -228,6 +251,8 @@ double getMaxDV(double **dv, int debug)
 
     for(i=0;i<M;i++) for(j=0;j<N;j++)
     {
+        if(cPos(i,DeltaR) > VContour[j]) continue;
+
         double locDV = fabs(dv[i][j]);
         if(locDV > maxDV)
         {

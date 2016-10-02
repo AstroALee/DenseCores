@@ -23,6 +23,7 @@ double DeltaZ;
 /* Filament Boundary and rho value */
 double *VContour;
 double Rbdy = 0;
+double VbdyVal = 0;
 
 /* Rho at the top boundary */
 double *RhoTop;
