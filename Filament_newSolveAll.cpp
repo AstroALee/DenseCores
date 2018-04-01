@@ -31,7 +31,7 @@ void ConvergeNew()
 
 
     // Debug, manually change V to test perturbation Poisson solve
-    if(1)
+    if(0)
     {
         for(i=0;i<M;i++) for(j=0;j<N;j++)
         {
@@ -295,6 +295,8 @@ int ConvergeTest(int loopnum,int type)
 
     if(type==1)
     {
+
+
 
     for(i=0;i<M;i++) for(j=0;j<N;j++)
     {

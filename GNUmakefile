@@ -1,8 +1,4 @@
-# Makefile for the Dense Core code
-# Written by Aaron Lee, 2015
-# $< :: matches the first dependency
-# $^ :: matches all the targets, removes duplicates
-# $@ :: matches the first target
+
 
 
 # Variables you can change
